@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface DrugItem {
   id: string;
@@ -32,7 +32,7 @@ interface PrescriptionItem {
   unitName?: string;
   prescribedQuantity?: number;
   usageInstruction?: string;
-  soldQuantity?: number; // state value for input
+  soldQuantity?: number;
 }
 
 interface PrescriptionData {
@@ -56,6 +56,9 @@ export default function Home() {
   const [cfgRxAppKey, setCfgRxAppKey] = useState('');
   const [isConfiguring, setIsConfiguring] = useState(false);
 
+  // Setup gate state (null = checking, false = show setup page, true = authenticated)
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+
   // Catalog search state
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<DrugItem[]>([]);
@@ -67,7 +70,7 @@ export default function Home() {
   const [stockDrugId, setStockDrugId] = useState('');
   const [stockUnitId, setStockUnitId] = useState('');
   const [stockQty, setStockQty] = useState<number>(1);
-  const [stockBatch, setStockBatch] = useState('LOT-' + new Date().getFullYear() + '-001');
+  const [stockBatch, setStockBatch] = useState('');
   const [stockExpiry, setStockExpiry] = useState('');
   const [stockManufacturer, setStockManufacturer] = useState('Dược Phẩm iCare');
   const [stockReason, setStockReason] = useState('supplier');
@@ -77,7 +80,6 @@ export default function Home() {
   // Dropdown lists
   const [drugsDropdown, setDrugsDropdown] = useState<DrugItem[]>([]);
   const [unitsDropdown, setUnitsDropdown] = useState<UnitItem[]>([]);
-  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
 
   // Logs terminal state
   const [logs, setLogs] = useState<{ text: string; type: 'info' | 'warn' | 'error' | 'success' }[]>([]);
@@ -91,26 +93,50 @@ export default function Home() {
   const [rxData, setRxData] = useState<PrescriptionData | null>(null);
   const [rxError, setRxError] = useState<string | null>(null);
   const [isReportingSale, setIsReportingSale] = useState(false);
-  // Track quantities user entered for each drug item
   const [rxSaleQuantities, setRxSaleQuantities] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    // Set default reference and expiry dates on client side
+    // Set default reference and expiry dates
     setStockRef('REF-TX-' + Date.now());
     const tomorrow = new Date();
     tomorrow.setFullYear(tomorrow.getFullYear() + 1);
     setStockExpiry(tomorrow.toISOString().split('T')[0]);
+    setStockBatch('LOT-' + new Date().getFullYear() + '-001');
 
-    // Load initial settings and data
-    loadSettings();
-    loadMasterUnits();
-    loadAllDrugsOnStartup();
-    loadTxHistory();
+    checkSetupAndInitialize();
   }, []);
 
   const addLog = (text: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     setLogs((prev) => [...prev, { text, type }]);
   };
+
+  // Check database configuration on start
+  async function checkSetupAndInitialize() {
+    try {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+
+      // If CSDL Dược credentials exist, bypass setup page
+      if (data.csdlDuoc && data.csdlDuoc.username) {
+        setCfgDuocUser(data.csdlDuoc.username || '');
+        setCfgDuocStore(data.csdlDuoc.storeId || '');
+        setCfgDuocWh(data.csdlDuoc.warehouseCode || '');
+        if (data.qd228) {
+          setCfgRxAppName(data.qd228.appName || '');
+        }
+
+        setIsConfigured(true);
+        loadMasterUnits();
+        loadAllDrugsOnStartup();
+        loadTxHistory();
+      } else {
+        setIsConfigured(false);
+      }
+    } catch (err) {
+      console.error('Error checking setup configuration:', err);
+      setIsConfigured(false);
+    }
+  }
 
   // ─── CONFIG ENDPOINTS ─────────────────────────────────────────────
   async function loadSettings() {
@@ -130,7 +156,7 @@ export default function Home() {
     }
   }
 
-  async function handleSaveSettings(e: React.FormEvent) {
+  async function handleSaveSettings(e: React.FormEvent, isSetupMode = false) {
     e.preventDefault();
     setIsConfiguring(true);
     try {
@@ -155,9 +181,15 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || 'Lỗi áp dụng cấu hình');
 
       alert('✅ Cấu hình kết nối SDK đã được lưu và áp dụng thành công!');
+      
+      if (isSetupMode) {
+        setIsConfigured(true);
+      }
+      
       // Reload metadata
       loadMasterUnits();
       loadAllDrugsOnStartup();
+      loadTxHistory();
     } catch (err: any) {
       alert(`❌ Lỗi lưu cấu hình: ${err.message}`);
     } finally {
@@ -325,9 +357,7 @@ export default function Home() {
       addLog(`Số lần thử kiểm tra (Attempts): ${result.attempts || 1}`, 'success');
       addLog('Đồng bộ dữ liệu lên CSDL Dược thành công!', 'success');
 
-      // Refresh transaction logs history
       loadTxHistory();
-      // Generate new transaction reference
       setStockRef('REF-TX-' + Date.now());
     } catch (err: any) {
       addLog(`\n[Lỗi đồng bộ kho]`, 'error');
@@ -357,7 +387,6 @@ export default function Home() {
       }
 
       setRxData(data);
-      // Initialize entered sales quantities to match prescribed quantities
       const initialQtys: Record<string, number> = {};
       data.items?.forEach((item: PrescriptionItem) => {
         if (item.drugCode) {
@@ -416,7 +445,6 @@ export default function Home() {
 
   const handleSelectDrugForSync = (drug: DrugItem) => {
     const drugId = drug.registrationNumber || drug.id;
-    // Add to dropdown list if not present
     if (!drugsDropdown.some(d => (d.registrationNumber || d.id) === drugId)) {
       setDrugsDropdown(prev => [...prev, drug]);
     }
@@ -424,6 +452,118 @@ export default function Home() {
     setActiveTab('stock');
   };
 
+  // 1. Loading state when checking setup config
+  if (isConfigured === null) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#080c14] text-[#f8fafc]">
+        <div className="text-center">
+          <i className="fa-solid fa-circle-notch fa-spin text-3xl text-[#10b981] mb-4"></i>
+          <p className="text-sm text-slate-400 font-medium">Đang kiểm tra cấu hình kết nối...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Setup/Login Page when credentials are missing
+  if (isConfigured === false) {
+    return (
+      <>
+        <div className="glow-bg"></div>
+        <div className="flex h-screen w-screen items-center justify-center p-4">
+          <form
+            onSubmit={(e) => handleSaveSettings(e, true)}
+            className="form-card w-full max-w-md shadow-2xl relative z-10"
+            style={{ backdropFilter: 'blur(16px)', background: 'rgba(15, 22, 36, 0.85)' }}
+          >
+            <div className="text-center mb-6">
+              <i className="fa-solid fa-prescription-bottle-medical text-4xl text-[#10b981] mb-2 filter drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"></i>
+              <h2 className="text-xl font-bold text-slate-100">Cấu hình iCare Portal</h2>
+              <p className="text-xs text-slate-400 mt-1">Vui lòng cung cấp tài khoản CSDL Dược để kích hoạt hệ thống</p>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="setup-duoc-user">Tài khoản CSDL Dược *</label>
+              <input
+                type="text"
+                id="setup-duoc-user"
+                required
+                placeholder="Nhập mã cơ sở nhà thuốc"
+                value={cfgDuocUser}
+                onChange={(e) => setCfgDuocUser(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="setup-duoc-pass">Mật khẩu CSDL Dược *</label>
+              <input
+                type="password"
+                id="setup-duoc-pass"
+                required
+                placeholder="Nhập mật khẩu kết nối"
+                value={cfgDuocPass}
+                onChange={(e) => setCfgDuocPass(e.target.value)}
+              />
+            </div>
+
+            <div className="form-row mb-4">
+              <div className="form-group">
+                <label htmlFor="setup-duoc-store">Store ID (Tùy chọn)</label>
+                <input
+                  type="text"
+                  id="setup-duoc-store"
+                  placeholder="e.g. STORE-01"
+                  value={cfgDuocStore}
+                  onChange={(e) => setCfgDuocStore(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="setup-duoc-wh">Warehouse (Tùy chọn)</label>
+                <input
+                  type="text"
+                  id="setup-duoc-wh"
+                  placeholder="e.g. WH-01"
+                  value={cfgDuocWh}
+                  onChange={(e) => setCfgDuocWh(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <details className="mb-4 text-xs text-slate-400 cursor-pointer">
+              <summary className="font-semibold text-slate-300 mb-2">Cấu hình Cổng Đơn Thuốc QĐ 228 (Tùy chọn)</summary>
+              <div className="pt-2 space-y-3">
+                <div className="form-group">
+                  <label htmlFor="setup-rx-appname">App Name (QĐ 228)</label>
+                  <input
+                    type="text"
+                    id="setup-rx-appname"
+                    placeholder="Mã cơ sở QĐ 228"
+                    value={cfgRxAppName}
+                    onChange={(e) => setCfgRxAppName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="setup-rx-appkey">App Key (QĐ 228)</label>
+                  <input
+                    type="password"
+                    id="setup-rx-appkey"
+                    placeholder="Khóa bảo mật QĐ 228"
+                    value={cfgRxAppKey}
+                    onChange={(e) => setCfgRxAppKey(e.target.value)}
+                  />
+                </div>
+              </div>
+            </details>
+
+            <button type="submit" className="submit-btn" disabled={isConfiguring}>
+              {isConfiguring ? 'Đang lưu cấu hình...' : 'Lưu & Bắt đầu làm việc'}
+            </button>
+          </form>
+        </div>
+      </>
+    );
+  }
+
+  // 3. Normal Dashboard Layout when authenticated
   return (
     <>
       <div className="glow-bg"></div>
@@ -910,7 +1050,7 @@ export default function Home() {
           {/* Tab 4: System Configurations */}
           {activeTab === 'settings' && (
             <div className="animate-fade">
-              <form onSubmit={handleSaveSettings} className="form-card max-w-2xl mx-auto">
+              <form onSubmit={(e) => handleSaveSettings(e, false)} className="form-card max-w-2xl mx-auto">
                 <h3 className="card-title">
                   <i className="fa-solid fa-gears"></i> Cấu hình kết nối SDK
                 </h3>
