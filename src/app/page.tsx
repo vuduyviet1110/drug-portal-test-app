@@ -188,11 +188,11 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || 'Lỗi áp dụng cấu hình');
 
       alert('✅ Cấu hình kết nối SDK đã được lưu và áp dụng thành công!');
-      
+
       if (isSetupMode) {
         setIsConfigured(true);
       }
-      
+
       loadMasterUnits();
       loadCatalogDrugs(1);
       loadTxHistory();
@@ -210,9 +210,10 @@ export default function Home() {
       const res = await fetch('/api/master/units');
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
-      setUnitsDropdown(data.items || []);
-      if (data.items?.length > 0) {
-        setStockUnitId(data.items[0].id);
+      const units = Array.isArray(data) ? data : (data.items || []);
+      setUnitsDropdown(units);
+      if (units.length > 0) {
+        setStockUnitId(units[0].id);
       }
     } catch (err: any) {
       console.warn('Using standard units fallback:', err.message);
@@ -236,7 +237,7 @@ export default function Home() {
     try {
       const res = await fetch(`/api/drugs?page=${pageNumber}&pageSize=${pageSize}`);
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.error || 'Không thể tải danh sách thuốc từ CSDL Dược');
       }
@@ -273,7 +274,7 @@ export default function Home() {
     try {
       const res = await fetch(`/api/drugs/search?keyword=${encodeURIComponent(searchKeyword)}`);
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.error || 'Lỗi tìm kiếm thuốc');
       }
@@ -466,7 +467,7 @@ export default function Home() {
         throw new Error((data.error || 'Lỗi gửi báo cáo số lượng bán') + detailMsg);
       }
 
-      alert('✅ Đã gửi báo cáo số lượng bán (UC05) lên Cổng đơn thuốc quốc gia thành công!');
+      alert('✅ Đã gửi báo cáo số lượng bán lên Cổng đơn thuốc quốc gia thành công!');
     } catch (err: any) {
       alert(`❌ Lỗi báo cáo đơn thuốc: ${err.message}`);
     } finally {
@@ -1112,7 +1113,7 @@ export default function Home() {
                       </>
                     ) : (
                       <>
-                        <i className="fa-solid fa-cloud-arrow-up"></i> Gửi báo cáo số lượng bán (UC05)
+                        <i className="fa-solid fa-cloud-arrow-up"></i> Gửi báo cáo số lượng bán
                       </>
                     )}
                   </button>
@@ -1128,9 +1129,9 @@ export default function Home() {
                 <h3 className="card-title">
                   <i className="fa-solid fa-gears"></i> Cấu hình kết nối SDK
                 </h3>
-                
+
                 <h4 className="sub-title">CƠ SỞ DỮ LIỆU DƯỢC QUỐC GIA (QĐ 522)</h4>
-                
+
                 <div className="form-group">
                   <label htmlFor="cfg-duoc-user">Tài khoản CSDL Dược *</label>
                   <input
@@ -1178,7 +1179,7 @@ export default function Home() {
                 </div>
 
                 <h4 className="sub-title mt-8">CỔNG ĐƠN THUỐC QUỐC GIA (QĐ 228)</h4>
-                
+
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="cfg-rx-appname">App Name (Mã cơ sở QĐ 228)</label>
