@@ -58,6 +58,7 @@ export default function Home() {
 
   // Setup gate state (null = checking, false = show setup page, true = authenticated)
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // Catalog search & pagination state
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -163,6 +164,7 @@ export default function Home() {
   async function handleSaveSettings(e: React.FormEvent, isSetupMode = false) {
     e.preventDefault();
     setIsConfiguring(true);
+    setSetupError(null);
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
@@ -194,6 +196,7 @@ export default function Home() {
       loadCatalogDrugs(1);
       loadTxHistory();
     } catch (err: any) {
+      setSetupError(err.message);
       alert(`❌ Lỗi lưu cấu hình: ${err.message}`);
     } finally {
       setIsConfiguring(false);
@@ -489,6 +492,13 @@ export default function Home() {
               <h2 className="text-xl font-bold text-slate-800">Cấu hình iCare Portal</h2>
               <p className="text-xs text-slate-500 mt-1">Vui lòng cung cấp tài khoản CSDL Dược để kích hoạt hệ thống</p>
             </div>
+
+            {setupError && (
+              <div className="mb-4 p-3.5 text-xs bg-rose-50 text-rose-700 border border-rose-200 rounded-md leading-relaxed">
+                <i className="fa-solid fa-circle-exclamation mr-2 text-rose-500"></i>
+                <strong>Đăng nhập thất bại:</strong> {setupError}
+              </div>
+            )}
 
             <div className="form-group">
               <label htmlFor="setup-duoc-user">Tài khoản CSDL Dược *</label>

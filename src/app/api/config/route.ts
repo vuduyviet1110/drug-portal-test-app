@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { resetClient } from '@/lib/client';
+import { resetClient, getClient } from '@/lib/client';
 
 export async function GET() {
   try {
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { csdlDuoc, qd228 } = body;
 
+    // 1. Upsert configuration credentials
     await prisma.systemConfig.upsert({
       where: { id: 'default' },
       create: {
@@ -53,10 +54,21 @@ export async function POST(request: Request) {
       },
     });
 
-    resetClient(); // Reset cache to instantiate new client next time
+    // Reset SDK cache to force instantiating with updated credentials
+    resetClient();
+
+    // 2. Validate credentials against CSDL Dược Sandbox
+    try {
+      const client = await getClient();
+      if (client && client.csdlDuoc) {
+        await client.csdlDuoc.masterData.getUnits();
+      }
+    } catch (testError: any) {
+      throw new Error(`Đăng nhập thất bại: ${testError.message}`);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
