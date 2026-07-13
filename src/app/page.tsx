@@ -70,6 +70,7 @@ export default function Home() {
   // Pagination states for default catalog loading
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10); // Display 10 items per page
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   // Sync Form state
   const [stockTxType, setStockTxType] = useState<'stock-in' | 'stock-out' | 'stock-taking'>('stock-in');
@@ -231,9 +232,15 @@ export default function Home() {
   async function loadCatalogDrugs(pageNumber: number) {
     setIsSearching(true);
     setIsSearchActive(false);
+    setCatalogError(null);
     try {
       const res = await fetch(`/api/drugs?page=${pageNumber}&pageSize=${pageSize}`);
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Không thể tải danh sách thuốc từ CSDL Dược');
+      }
+
       const items = data.items || [];
       setSearchResults(items);
       setSearchCount(data.totalCount || data.total || items.length);
@@ -246,6 +253,9 @@ export default function Home() {
       }
     } catch (err: any) {
       console.warn('Lỗi tải danh mục thuốc:', err.message);
+      setCatalogError(err.message);
+      setSearchResults([]);
+      setSearchCount(0);
     } finally {
       setIsSearching(false);
     }
@@ -259,9 +269,15 @@ export default function Home() {
     }
     setIsSearching(true);
     setIsSearchActive(true);
+    setCatalogError(null);
     try {
       const res = await fetch(`/api/drugs/search?keyword=${encodeURIComponent(searchKeyword)}`);
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Lỗi tìm kiếm thuốc');
+      }
+
       const items = data.items || [];
       setSearchResults(items);
       setSearchCount(data.total || items.length);
@@ -272,7 +288,9 @@ export default function Home() {
         setStockDrugId(items[0].registrationNumber || items[0].id);
       }
     } catch (err: any) {
-      alert(`Lỗi tìm kiếm: ${err.message}`);
+      setCatalogError(err.message);
+      setSearchResults([]);
+      setSearchCount(0);
     } finally {
       setIsSearching(false);
     }
@@ -650,7 +668,21 @@ export default function Home() {
                 </div>
               )}
 
-              {!isSearching && searchResults.length > 0 && (
+              {catalogError && (
+                <div className="results-card mb-6" style={{ borderColor: 'var(--danger-color)', background: 'rgba(225, 29, 72, 0.03)' }}>
+                  <h3 className="card-title" style={{ color: 'var(--danger-color)', borderBottomColor: 'rgba(225, 29, 72, 0.1)' }}>
+                    <i className="fa-solid fa-circle-exclamation"></i> Lỗi kết nối CSDL Dược
+                  </h3>
+                  <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                    {catalogError}
+                  </p>
+                  <button className="action-btn" onClick={() => setActiveTab('settings')}>
+                    <i className="fa-solid fa-gears"></i> Đi tới Cấu hình hệ thống để cập nhật lại mật khẩu
+                  </button>
+                </div>
+              )}
+
+              {!isSearching && !catalogError && searchResults.length > 0 && (
                 <div className="results-card">
                   <h3 className="card-title">
                     <i className="fa-solid fa-layer-group"></i>
@@ -717,7 +749,7 @@ export default function Home() {
                 </div>
               )}
 
-              {!isSearching && searchResults.length === 0 && (
+              {!isSearching && !catalogError && searchResults.length === 0 && (
                 <div className="text-center py-12 text-slate-500">
                   Không tìm thấy thuốc nào trong danh sách.
                 </div>
