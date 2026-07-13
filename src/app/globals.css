@@ -414,6 +414,7 @@ body {
 
 .form-group input,
 .form-group select {
+  width: 100%;
   background: #ffffff;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
