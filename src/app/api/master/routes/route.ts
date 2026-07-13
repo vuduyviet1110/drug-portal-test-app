@@ -11,7 +11,7 @@ export async function GET() {
   }
 
   try {
-    const routes = await client.csdlDuoc.masterData.getRoutes(undefined, { page: 1, pageSize: 50 });
+    const routes = await client.csdlDuoc.masterData.getRoutes(undefined, { page: 1, pageSize: 20 });
     return NextResponse.json(routes);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

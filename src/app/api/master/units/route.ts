@@ -11,7 +11,7 @@ export async function GET() {
   }
 
   try {
-    const units = await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 50 });
+    const units = await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 20 });
     return NextResponse.json(units);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

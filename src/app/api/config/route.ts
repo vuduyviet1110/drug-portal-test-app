@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     try {
       const client = await getClient();
       if (client && client.csdlDuoc) {
-        await client.csdlDuoc.masterData.getUnits();
+        await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 10 });
       }
     } catch (testError: any) {
       throw new Error(`Đăng nhập thất bại: ${testError.message}`);
