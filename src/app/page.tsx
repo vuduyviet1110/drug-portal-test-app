@@ -59,11 +59,16 @@ export default function Home() {
   // Setup gate state (null = checking, false = show setup page, true = authenticated)
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
 
-  // Catalog search state
+  // Catalog search & pagination state
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<DrugItem[]>([]);
   const [searchCount, setSearchCount] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false); // check if user performed keyword search
+
+  // Pagination states for default catalog loading
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10); // Display 10 items per page
 
   // Sync Form state
   const [stockTxType, setStockTxType] = useState<'stock-in' | 'stock-out' | 'stock-taking'>('stock-in');
@@ -116,7 +121,6 @@ export default function Home() {
       const res = await fetch('/api/config');
       const data = await res.json();
 
-      // If CSDL Dược credentials exist, bypass setup page
       if (data.csdlDuoc && data.csdlDuoc.username) {
         setCfgDuocUser(data.csdlDuoc.username || '');
         setCfgDuocStore(data.csdlDuoc.storeId || '');
@@ -127,7 +131,7 @@ export default function Home() {
 
         setIsConfigured(true);
         loadMasterUnits();
-        loadAllDrugsOnStartup();
+        loadCatalogDrugs(1);
         loadTxHistory();
       } else {
         setIsConfigured(false);
@@ -186,9 +190,8 @@ export default function Home() {
         setIsConfigured(true);
       }
       
-      // Reload metadata
       loadMasterUnits();
-      loadAllDrugsOnStartup();
+      loadCatalogDrugs(1);
       loadTxHistory();
     } catch (err: any) {
       alert(`❌ Lỗi lưu cấu hình: ${err.message}`);
@@ -221,14 +224,17 @@ export default function Home() {
     }
   }
 
-  async function loadAllDrugsOnStartup() {
+  // Load catalog list with page parameter
+  async function loadCatalogDrugs(pageNumber: number) {
     setIsSearching(true);
+    setIsSearchActive(false);
     try {
-      const res = await fetch('/api/drugs?page=1&pageSize=50');
+      const res = await fetch(`/api/drugs?page=${pageNumber}&pageSize=${pageSize}`);
       const data = await res.json();
       const items = data.items || [];
       setSearchResults(items);
-      setSearchCount(data.total || items.length);
+      setSearchCount(data.totalCount || data.total || items.length);
+      setCurrentPage(pageNumber);
 
       // Populate dropdown for sync tab
       setDrugsDropdown(items);
@@ -245,10 +251,11 @@ export default function Home() {
   async function handleSearch(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (!searchKeyword.trim()) {
-      loadAllDrugsOnStartup();
+      loadCatalogDrugs(1);
       return;
     }
     setIsSearching(true);
+    setIsSearchActive(true);
     try {
       const res = await fetch(`/api/drugs/search?keyword=${encodeURIComponent(searchKeyword)}`);
       const data = await res.json();
@@ -267,6 +274,9 @@ export default function Home() {
       setIsSearching(false);
     }
   }
+
+  // Calculate total pages for default catalog pagination
+  const totalPages = Math.ceil(searchCount / pageSize);
 
   // ─── STOCK SYNC ──────────────────────────────────────────────────
   async function loadTxHistory() {
@@ -455,10 +465,10 @@ export default function Home() {
   // 1. Loading state when checking setup config
   if (isConfigured === null) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#080c14] text-[#f8fafc]">
+      <div className="flex h-screen w-screen items-center justify-center bg-[#f8fafc] text-[#0f172a]">
         <div className="text-center">
-          <i className="fa-solid fa-circle-notch fa-spin text-3xl text-[#10b981] mb-4"></i>
-          <p className="text-sm text-slate-400 font-medium">Đang kiểm tra cấu hình kết nối...</p>
+          <i className="fa-solid fa-circle-notch fa-spin text-3xl text-[#0d9488] mb-4"></i>
+          <p className="text-sm text-slate-500 font-medium">Đang kiểm tra cấu hình kết nối...</p>
         </div>
       </div>
     );
@@ -468,17 +478,16 @@ export default function Home() {
   if (isConfigured === false) {
     return (
       <>
-        <div className="glow-bg"></div>
-        <div className="flex h-screen w-screen items-center justify-center p-4">
+        <div className="flex h-screen w-screen items-center justify-center p-4 bg-[#f8fafc]">
           <form
             onSubmit={(e) => handleSaveSettings(e, true)}
             className="form-card w-full max-w-md shadow-2xl relative z-10"
-            style={{ backdropFilter: 'blur(16px)', background: 'rgba(15, 22, 36, 0.85)' }}
+            style={{ background: '#ffffff', borderColor: '#e2e8f0' }}
           >
             <div className="text-center mb-6">
-              <i className="fa-solid fa-prescription-bottle-medical text-4xl text-[#10b981] mb-2 filter drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"></i>
-              <h2 className="text-xl font-bold text-slate-100">Cấu hình iCare Portal</h2>
-              <p className="text-xs text-slate-400 mt-1">Vui lòng cung cấp tài khoản CSDL Dược để kích hoạt hệ thống</p>
+              <i className="fa-solid fa-prescription-bottle-medical text-4xl text-[#0d9488] mb-2"></i>
+              <h2 className="text-xl font-bold text-slate-800">Cấu hình iCare Portal</h2>
+              <p className="text-xs text-slate-500 mt-1">Vui lòng cung cấp tài khoản CSDL Dược để kích hoạt hệ thống</p>
             </div>
 
             <div className="form-group">
@@ -528,8 +537,8 @@ export default function Home() {
               </div>
             </div>
 
-            <details className="mb-4 text-xs text-slate-400 cursor-pointer">
-              <summary className="font-semibold text-slate-300 mb-2">Cấu hình Cổng Đơn Thuốc QĐ 228 (Tùy chọn)</summary>
+            <details className="mb-4 text-xs text-slate-500 cursor-pointer">
+              <summary className="font-semibold text-slate-700 mb-2">Cấu hình Cổng Đơn Thuốc QĐ 228 (Tùy chọn)</summary>
               <div className="pt-2 space-y-3">
                 <div className="form-group">
                   <label htmlFor="setup-rx-appname">App Name (QĐ 228)</label>
@@ -566,7 +575,6 @@ export default function Home() {
   // 3. Normal Dashboard Layout when authenticated
   return (
     <>
-      <div className="glow-bg"></div>
       <div className="container-custom">
         {/* Header */}
         <header className="glass-header">
@@ -635,7 +643,8 @@ export default function Home() {
               {!isSearching && searchResults.length > 0 && (
                 <div className="results-card">
                   <h3 className="card-title">
-                    <i className="fa-solid fa-layer-group"></i> Kết quả tìm kiếm ({searchCount})
+                    <i className="fa-solid fa-layer-group"></i>
+                    {isSearchActive ? 'Kết quả tìm kiếm' : 'Danh mục thuốc CSDL Dược'} ({searchCount})
                   </h3>
                   <div className="table-responsive">
                     <table className="data-table">
@@ -672,6 +681,29 @@ export default function Home() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Pagination Controls - only display when not searching by keyword */}
+                  {!isSearchActive && totalPages > 1 && (
+                    <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
+                      <button
+                        onClick={() => loadCatalogDrugs(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="action-btn disabled:opacity-40"
+                      >
+                        <i className="fa-solid fa-chevron-left"></i> Trang trước
+                      </button>
+                      <span className="text-xs font-semibold text-slate-500">
+                        Trang {currentPage} / {totalPages}
+                      </span>
+                      <button
+                        onClick={() => loadCatalogDrugs(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="action-btn disabled:opacity-40"
+                      >
+                        Trang sau <i className="fa-solid fa-chevron-right"></i>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -715,7 +747,7 @@ export default function Home() {
                         <label htmlFor="stock-drug-id">Thuốc *</label>
                         <button
                           type="button"
-                          onClick={loadAllDrugsOnStartup}
+                          onClick={() => loadCatalogDrugs(1)}
                           className="action-btn"
                           style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
                           disabled={isSearching}
