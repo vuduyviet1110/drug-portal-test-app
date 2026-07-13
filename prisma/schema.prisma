@@ -1,0 +1,31 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model SystemConfig {
+  id                String  @id @default("default")
+  duocUsername      String  @default("")
+  duocPassword      String  @default("")
+  duocStoreId       String?
+  duocWarehouseCode String?
+  qd228AppName      String?
+  qd228AppKey       String?
+  updatedAt         DateTime @updatedAt
+}
+
+model TransactionLog {
+  id              String   @id
+  type            String   // "stock-in", "stock-out", "stock-taking"
+  date            DateTime @default(now())
+  status          String   // "pending", "completed", "failed"
+  reason          String?
+  referenceNumber String?
+  items           String   // JSON string representing transaction items
+  attempts        Int      @default(1)
+  errorMessage    String?
+}

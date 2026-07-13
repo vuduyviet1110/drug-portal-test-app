@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: ['@icare1/drug-portal-sdk'],
 };
 
 export default nextConfig;
