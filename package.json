@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@icare1/drug-portal-sdk": "^0.1.5",
+    "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
+    "@prisma/adapter-neon": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "better-sqlite3": "^12.11.1",
     "lucide-react": "^1.24.0",
