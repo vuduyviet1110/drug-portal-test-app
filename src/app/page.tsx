@@ -19,6 +19,7 @@ export default function Home() {
   const [cfgDuocWh, setCfgDuocWh] = useState('');
   const [cfgRxAppName, setCfgRxAppName] = useState('');
   const [cfgRxAppKey, setCfgRxAppKey] = useState('');
+  const [cfgProxyUrl, setCfgProxyUrl] = useState('');
   const [isConfiguring, setIsConfiguring] = useState(false);
 
   // Setup gate state (null = checking, false = show setup page, true = authenticated)
@@ -90,12 +91,14 @@ export default function Home() {
 
       if (data.csdlDuoc && data.csdlDuoc.username) {
         setCfgDuocUser(data.csdlDuoc.username || '');
+        setCfgDuocPass(data.csdlDuoc.password || '');
         setCfgDuocStore(data.csdlDuoc.storeId || '');
         setCfgDuocWh(data.csdlDuoc.warehouseCode || '');
         if (data.qd228) {
           setCfgRxAppName(data.qd228.appName || '');
+          setCfgRxAppKey(data.qd228.appKey || '');
         }
-
+        setCfgProxyUrl(data.proxyUrl || '');
         setIsConfigured(true);
         loadMasterUnits();
         loadCatalogDrugs(1);
@@ -116,12 +119,15 @@ export default function Home() {
       const data = await res.json();
       if (data.csdlDuoc) {
         setCfgDuocUser(data.csdlDuoc.username || '');
+        setCfgDuocPass(data.csdlDuoc.password || '');
         setCfgDuocStore(data.csdlDuoc.storeId || '');
         setCfgDuocWh(data.csdlDuoc.warehouseCode || '');
       }
       if (data.qd228) {
         setCfgRxAppName(data.qd228.appName || '');
+        setCfgRxAppKey(data.qd228.appKey || '');
       }
+      setCfgProxyUrl(data.proxyUrl || '');
     } catch (err: any) {
       console.warn('Không thể tải cấu hình lưu sẵn:', err.message);
     }
@@ -145,7 +151,8 @@ export default function Home() {
           qd228: cfgRxAppName.trim() && cfgRxAppKey ? {
             appName: cfgRxAppName.trim(),
             appKey: cfgRxAppKey,
-          } : undefined
+          } : undefined,
+          proxyUrl: cfgProxyUrl.trim() || undefined
         }),
       });
 
@@ -166,6 +173,35 @@ export default function Home() {
       alert(`❌ Lỗi lưu cấu hình: ${err.message}`);
     } finally {
       setIsConfiguring(false);
+    }
+  }
+
+  async function handleResetSettings() {
+    if (
+      !confirm(
+        'Bạn có chắc chắn muốn xóa toàn bộ cấu hình kết nối SDK? Ứng dụng sẽ yêu cầu cấu hình lại từ đầu.',
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/config', { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Lỗi xóa cấu hình');
+      }
+      alert('✅ Đã xóa cấu hình thành công!');
+      // Reset form states
+      setCfgDuocUser('');
+      setCfgDuocPass('');
+      setCfgDuocStore('');
+      setCfgDuocWh('');
+      setCfgRxAppName('');
+      setCfgRxAppKey('');
+      setCfgProxyUrl('');
+      setIsConfigured(false);
+    } catch (err: any) {
+      alert(`❌ Lỗi khi xóa cấu hình: ${err.message}`);
     }
   }
 
@@ -479,6 +515,8 @@ export default function Home() {
         setCfgRxAppName={setCfgRxAppName}
         cfgRxAppKey={cfgRxAppKey}
         setCfgRxAppKey={setCfgRxAppKey}
+        cfgProxyUrl={cfgProxyUrl}
+        setCfgProxyUrl={setCfgProxyUrl}
         isConfiguring={isConfiguring}
       />
     );
@@ -598,6 +636,9 @@ export default function Home() {
             setCfgRxAppName={setCfgRxAppName}
             cfgRxAppKey={cfgRxAppKey}
             setCfgRxAppKey={setCfgRxAppKey}
+            cfgProxyUrl={cfgProxyUrl}
+            setCfgProxyUrl={setCfgProxyUrl}
+            handleResetSettings={handleResetSettings}
             isConfiguring={isConfiguring}
           />
         )}

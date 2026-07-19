@@ -15,6 +15,8 @@ interface SetupViewProps {
   setCfgRxAppName: (val: string) => void;
   cfgRxAppKey: string;
   setCfgRxAppKey: (val: string) => void;
+  cfgProxyUrl: string;
+  setCfgProxyUrl: (val: string) => void;
   isConfiguring: boolean;
 }
 
@@ -33,6 +35,8 @@ export default function SetupView({
   setCfgRxAppName,
   cfgRxAppKey,
   setCfgRxAppKey,
+  cfgProxyUrl,
+  setCfgProxyUrl,
   isConfiguring,
 }: SetupViewProps) {
   return (
@@ -100,6 +104,17 @@ export default function SetupView({
               onChange={(e) => setCfgDuocWh(e.target.value)}
             />
           </div>
+        </div>
+
+        <div className="form-group mb-4">
+          <label htmlFor="setup-proxy-url">Proxy Server URL (Tùy chọn)</label>
+          <input
+            type="text"
+            id="setup-proxy-url"
+            placeholder="http://username:password@proxy-ip:port"
+            value={cfgProxyUrl}
+            onChange={(e) => setCfgProxyUrl(e.target.value)}
+          />
         </div>
 
         <details className="mb-4 text-xs text-slate-500 cursor-pointer">

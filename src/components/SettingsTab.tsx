@@ -14,6 +14,9 @@ interface SettingsTabProps {
   setCfgRxAppName: (val: string) => void;
   cfgRxAppKey: string;
   setCfgRxAppKey: (val: string) => void;
+  cfgProxyUrl: string;
+  setCfgProxyUrl: (val: string) => void;
+  handleResetSettings: () => void;
   isConfiguring: boolean;
 }
 
@@ -31,6 +34,9 @@ export default function SettingsTab({
   setCfgRxAppName,
   cfgRxAppKey,
   setCfgRxAppKey,
+  cfgProxyUrl,
+  setCfgProxyUrl,
+  handleResetSettings,
   isConfiguring,
 }: SettingsTabProps) {
   return (
@@ -88,7 +94,21 @@ export default function SettingsTab({
           </div>
         </div>
 
-        <h4 className="sub-title mt-8">CỔNG ĐƠN THUỐC QUỐC GIA (QĐ 228)</h4>
+        <div className="form-group mt-4">
+          <label htmlFor="cfg-proxy-url">Proxy Server URL (Tùy chọn)</label>
+          <input
+            type="text"
+            id="cfg-proxy-url"
+            placeholder="http://username:password@proxy-ip:port"
+            value={cfgProxyUrl}
+            onChange={(e) => setCfgProxyUrl(e.target.value)}
+          />
+          <span className="text-[11px] text-slate-500">
+            * Dùng để bypass chặn IP Việt Nam khi deploy ứng dụng lên Vercel/Cloud nước ngoài.
+          </span>
+        </div>
+
+        <h4 className="sub-title pt-6 border-t border-slate-100 mt-8">CỔNG ĐƠN THUỐC QUỐC GIA (QĐ 228)</h4>
 
         <div className="form-row">
           <div className="form-group">
@@ -112,9 +132,18 @@ export default function SettingsTab({
           </div>
         </div>
 
-        <button type="submit" className="submit-btn" disabled={isConfiguring}>
-          {isConfiguring ? 'Đang lưu cấu hình...' : 'Lưu & Áp dụng cấu hình'}
-        </button>
+        <div className="flex gap-4 mt-6">
+          <button type="submit" className="submit-btn flex-grow" disabled={isConfiguring}>
+            {isConfiguring ? 'Đang lưu cấu hình...' : 'Lưu & Áp dụng cấu hình'}
+          </button>
+          <button
+            type="button"
+            onClick={handleResetSettings}
+            className="px-4 py-2 text-sm border border-rose-200 text-rose-600 bg-[#fff5f5] hover:bg-rose-100 transition rounded-md font-semibold"
+          >
+            <i className="fa-solid fa-trash-can mr-2"></i> Xóa cấu hình
+          </button>
+        </div>
       </form>
     </div>
   );

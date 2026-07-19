@@ -18,6 +18,7 @@ export async function getClient(): Promise<DrugPortalClient | null> {
     const warehouseCode = process.env.CSDL_DUOC_WAREHOUSE_CODE;
     const qd228AppName = process.env.QD228_APP_NAME?.trim();
     const qd228AppKey = process.env.QD228_APP_KEY?.trim();
+    const proxyUrl = process.env.PROXY_URL?.trim();
 
     if (username && password) {
       config = await prisma.systemConfig.create({
@@ -29,6 +30,7 @@ export async function getClient(): Promise<DrugPortalClient | null> {
           duocWarehouseCode: warehouseCode || null,
           qd228AppName: qd228AppName || null,
           qd228AppKey: qd228AppKey || null,
+          proxyUrl: proxyUrl || null,
         },
       });
     }
@@ -49,6 +51,7 @@ function createClientInstance(config: any): DrugPortalClient {
 
   cachedClient = new DrugPortalClient({
     environment: 'sandbox',
+    proxyUrl: config.proxyUrl || undefined,
     csdlDuoc: hasCsdlDuoc
       ? {
           username: config.duocUsername,

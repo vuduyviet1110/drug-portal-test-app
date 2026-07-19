@@ -15,12 +15,15 @@ export async function GET() {
     return NextResponse.json({
       csdlDuoc: {
         username: config.duocUsername || '',
+        password: config.duocPassword ? '••••••••' : '',
         storeId: config.duocStoreId || '',
         warehouseCode: config.duocWarehouseCode || '',
       },
       qd228: {
         appName: config.qd228AppName || '',
+        appKey: config.qd228AppKey ? '••••••••' : '',
       },
+      proxyUrl: config.proxyUrl || '',
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -30,7 +33,22 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { csdlDuoc, qd228 } = body;
+    const { csdlDuoc, qd228, proxyUrl } = body;
+
+    // Fetch existing configurations first to prevent password wiping
+    const existing = await prisma.systemConfig.findUnique({
+      where: { id: 'default' },
+    });
+
+    const finalPassword =
+      csdlDuoc?.password && csdlDuoc.password !== '••••••••'
+        ? csdlDuoc.password
+        : (existing?.duocPassword || '');
+
+    const finalAppKey =
+      qd228?.appKey && qd228.appKey !== '••••••••'
+        ? qd228.appKey
+        : (existing?.qd228AppKey || '');
 
     // 1. Upsert configuration credentials
     await prisma.systemConfig.upsert({
@@ -38,19 +56,21 @@ export async function POST(request: Request) {
       create: {
         id: 'default',
         duocUsername: csdlDuoc?.username || '',
-        duocPassword: csdlDuoc?.password || '',
+        duocPassword: finalPassword,
         duocStoreId: csdlDuoc?.storeId || null,
         duocWarehouseCode: csdlDuoc?.warehouseCode || null,
         qd228AppName: qd228?.appName || null,
-        qd228AppKey: qd228?.appKey || null,
+        qd228AppKey: finalAppKey,
+        proxyUrl: proxyUrl || null,
       },
       update: {
         duocUsername: csdlDuoc?.username || '',
-        duocPassword: csdlDuoc?.password || '',
+        duocPassword: finalPassword,
         duocStoreId: csdlDuoc?.storeId || null,
         duocWarehouseCode: csdlDuoc?.warehouseCode || null,
         qd228AppName: qd228?.appName || null,
-        qd228AppKey: qd228?.appKey || null,
+        qd228AppKey: finalAppKey,
+        proxyUrl: proxyUrl || null,
       },
     });
 
@@ -70,5 +90,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}
+
+export async function DELETE() {
+  try {
+    await prisma.systemConfig.deleteMany();
+    resetClient();
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

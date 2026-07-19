@@ -15,6 +15,7 @@ model SystemConfig {
   duocWarehouseCode String?
   qd228AppName      String?
   qd228AppKey       String?
+  proxyUrl          String?
   updatedAt         DateTime @updatedAt
 }
 
