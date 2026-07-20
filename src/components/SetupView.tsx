@@ -115,6 +115,9 @@ export default function SetupView({
             value={cfgProxyUrl}
             onChange={(e) => setCfgProxyUrl(e.target.value)}
           />
+          <span className="text-[10px] text-slate-500 leading-relaxed mt-1 block">
+            * Nếu trống, hệ thống sẽ tự động quét & tìm proxy Việt Nam miễn phí (có rủi ro dễ hết hạn/chậm, nên dùng proxy riêng trả phí của bạn để ổn định nhất).
+          </span>
         </div>
 
         <details className="mb-4 text-xs text-slate-500 cursor-pointer">

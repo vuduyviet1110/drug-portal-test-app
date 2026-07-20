@@ -67,6 +67,7 @@ export default function SettingsTab({
             placeholder="••••••••"
             value={cfgDuocPass}
             onChange={(e) => setCfgDuocPass(e.target.value)}
+            autoComplete="new-password"
           />
           <span className="text-[11px] text-slate-500">
             * Để trống nếu không muốn cập nhật lại mật khẩu cũ.
@@ -103,8 +104,8 @@ export default function SettingsTab({
             value={cfgProxyUrl}
             onChange={(e) => setCfgProxyUrl(e.target.value)}
           />
-          <span className="text-[11px] text-slate-500">
-            * Dùng để bypass chặn IP Việt Nam khi deploy ứng dụng lên Vercel/Cloud nước ngoài.
+          <span className="text-[11px] text-slate-500 leading-relaxed mt-1 block">
+            * Nếu trống, hệ thống sẽ tự động quét & tìm proxy Việt Nam miễn phí (có rủi ro dễ hết hạn/chậm, nên dùng proxy riêng trả phí của bạn để ổn định nhất khi deploy lên Vercel/Cloud nước ngoài).
           </span>
         </div>
 
@@ -128,6 +129,7 @@ export default function SettingsTab({
               placeholder="••••••••"
               value={cfgRxAppKey}
               onChange={(e) => setCfgRxAppKey(e.target.value)}
+              autoComplete="new-password"
             />
           </div>
         </div>

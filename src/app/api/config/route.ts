@@ -35,10 +35,34 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { csdlDuoc, qd228, proxyUrl } = body;
 
+    console.log('[API Config POST] Received body:', {
+      csdlDuoc: csdlDuoc ? {
+        username: csdlDuoc.username,
+        password: csdlDuoc.password ? '***' : '',
+        storeId: csdlDuoc.storeId,
+        warehouseCode: csdlDuoc.warehouseCode
+      } : null,
+      qd228: qd228 ? {
+        appName: qd228.appName,
+        appKey: qd228.appKey ? '***' : ''
+      } : null,
+      proxyUrl
+    });
+
     // Fetch existing configurations first to prevent password wiping
     const existing = await prisma.systemConfig.findUnique({
       where: { id: 'default' },
     });
+
+    console.log('[API Config POST] Existing config:', existing ? {
+      duocUsername: existing.duocUsername,
+      hasDuocPassword: !!existing.duocPassword,
+      duocStoreId: existing.duocStoreId,
+      duocWarehouseCode: existing.duocWarehouseCode,
+      qd228AppName: existing.qd228AppName,
+      hasQd228AppKey: !!existing.qd228AppKey,
+      proxyUrl: existing.proxyUrl
+    } : 'null');
 
     const finalPassword =
       csdlDuoc?.password && csdlDuoc.password !== '••••••••'
@@ -49,6 +73,13 @@ export async function POST(request: Request) {
       qd228?.appKey && qd228.appKey !== '••••••••'
         ? qd228.appKey
         : (existing?.qd228AppKey || '');
+
+    console.log('[API Config POST] Resolved credentials:', {
+      finalPasswordUsedExisting: finalPassword === existing?.duocPassword,
+      finalAppKeyUsedExisting: finalAppKey === existing?.qd228AppKey,
+      finalPasswordLength: finalPassword.length,
+      finalAppKeyLength: finalAppKey.length
+    });
 
     // 1. Upsert configuration credentials
     await prisma.systemConfig.upsert({
@@ -74,21 +105,29 @@ export async function POST(request: Request) {
       },
     });
 
+    console.log('[API Config POST] Database upserted successfully.');
+
     // Reset SDK cache to force instantiating with updated credentials
     resetClient();
 
     // 2. Validate credentials against CSDL Dược Sandbox
     try {
+      console.log('[API Config POST] Initiating validation request against CSDL Dược Sandbox...');
       const client = await getClient();
       if (client && client.csdlDuoc) {
         await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 10 });
+        console.log('[API Config POST] Validation successful!');
+      } else {
+        console.log('[API Config POST] No client or csdlDuoc config, skipping validation');
       }
     } catch (testError: any) {
+      console.error('[API Config POST] Validation error:', testError);
       throw new Error(`Đăng nhập thất bại: ${testError.message}`);
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error('[API Config POST] Request handler error:', error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
