@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { resetClient, getClient } from '@/lib/client';
+import { clearPersistedProxyUrl } from '@/lib/proxy-persistence';
 
 export async function GET() {
   try {
@@ -62,6 +63,8 @@ export async function POST(request: Request) {
             ? qd228.appKey
             : (existing?.qd228AppKey || '');
 
+        const explicitProxy = proxyUrl?.trim() || null;
+
         sendProgress('save_db', 'Đang lưu trữ thông tin cấu hình vào cơ sở dữ liệu...');
         
         // 1. Upsert configuration credentials
@@ -75,7 +78,8 @@ export async function POST(request: Request) {
             duocWarehouseCode: csdlDuoc?.warehouseCode || null,
             qd228AppName: qd228?.appName || null,
             qd228AppKey: finalAppKey,
-            proxyUrl: proxyUrl || null,
+            proxyUrl: explicitProxy,
+            autoResolvedProxyUrl: null,
           },
           update: {
             duocUsername: csdlDuoc?.username || '',
@@ -84,14 +88,18 @@ export async function POST(request: Request) {
             duocWarehouseCode: csdlDuoc?.warehouseCode || null,
             qd228AppName: qd228?.appName || null,
             qd228AppKey: finalAppKey,
-            proxyUrl: proxyUrl || null,
+            proxyUrl: explicitProxy,
+            ...(explicitProxy ? { autoResolvedProxyUrl: null } : {}),
           },
         });
 
         sendProgress('db_saved', 'Đã lưu cấu hình thành công. Đang tải lại SDK client...');
 
-        const proxyChanged = (proxyUrl?.trim() || null) !== (existing?.proxyUrl || null);
+        const proxyChanged = explicitProxy !== (existing?.proxyUrl || null);
         resetClient({ clearProxyCache: proxyChanged });
+        if (explicitProxy) {
+          await clearPersistedProxyUrl();
+        }
 
         // 2. Validate credentials against CSDL Dược Sandbox
         sendProgress('initiating_validation', 'Đang khởi tạo kết nối và bắt đầu kiểm tra xác thực...');

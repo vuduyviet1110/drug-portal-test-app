@@ -21,7 +21,9 @@ function stepToType(step: string, explicit?: BackendActivityEntry['type']): Back
     step === 'validation_success' ||
     step === 'proxy_found' ||
     step === 'direct_connection_success' ||
-    step === 'api_success'
+    step === 'api_success' ||
+    step === 'reusing_saved_proxy' ||
+    step === 'proxy_saved'
   ) {
     return 'success';
   }
@@ -29,7 +31,8 @@ function stepToType(step: string, explicit?: BackendActivityEntry['type']): Back
     step === 'direct_connection_blocked' ||
     step === 'proxy_not_found' ||
     step === 'verifying_auth_retry' ||
-    step === 'retry_direct_connection'
+    step === 'retry_direct_connection' ||
+    step === 'saved_proxy_expired'
   ) {
     return 'warn';
   }

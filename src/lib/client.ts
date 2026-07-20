@@ -3,6 +3,11 @@ import { prisma } from './prisma';
 import { ProxyAgent, fetch, type RequestInit } from 'undici';
 import { SystemConfig } from '@prisma/client';
 import { findFirstWorkingProxy, scrapeVietnamProxies } from './proxy-scraper';
+import {
+  clearPersistedProxyUrl,
+  loadPersistedProxyUrl,
+  savePersistedProxyUrl,
+} from './proxy-persistence';
 
 let cachedClient: DrugPortalClient | null = null;
 let cachedFallbackProxy: string | null = null;
@@ -51,20 +56,43 @@ async function testProxy(proxyUrl: string): Promise<boolean> {
   }
 }
 
-// Helper to scrape and find a working proxy in Vietnam from multiple free sources
-async function getAutomaticFallbackProxy(
-  onProgress?: (step: string, message: string) => void
+// Try in-memory cache, then proxy saved in DB from a previous successful login/request.
+async function tryReuseSavedProxy(
+  onProgress?: (step: string, message: string) => void,
 ): Promise<string | null> {
   if (cachedFallbackProxy) {
-    onProgress?.('testing_cached_proxy', `Đang kiểm tra lại proxy lưu trong cache: ${cachedFallbackProxy}...`);
+    onProgress?.('testing_cached_proxy', `Đang kiểm tra lại proxy trong bộ nhớ: ${cachedFallbackProxy}...`);
     const works = await testProxy(cachedFallbackProxy);
     if (works) {
-      console.log(`[Fallback Proxy] Reusing cached proxy: ${cachedFallbackProxy}`);
-      onProgress?.('reusing_cached_proxy', `Đang sử dụng lại proxy hoạt động tốt từ cache: ${cachedFallbackProxy}`);
+      onProgress?.('reusing_cached_proxy', `Đang dùng lại proxy từ bộ nhớ: ${cachedFallbackProxy}`);
       return cachedFallbackProxy;
     }
     cachedFallbackProxy = null;
   }
+
+  const persistedProxy = await loadPersistedProxyUrl();
+  if (!persistedProxy) return null;
+
+  onProgress?.('testing_saved_proxy', `Đang thử lại proxy đã lưu khi đăng nhập: ${persistedProxy}...`);
+  const works = await testProxy(persistedProxy);
+  if (works) {
+    cachedFallbackProxy = persistedProxy;
+    onProgress?.('reusing_saved_proxy', `Proxy đã lưu vẫn hoạt động, bỏ qua bước quét mới: ${persistedProxy}`);
+    return persistedProxy;
+  }
+
+  onProgress?.('saved_proxy_expired', 'Proxy đã lưu không còn hoạt động. Bắt đầu quét proxy mới...');
+  cachedFallbackProxy = null;
+  await clearPersistedProxyUrl();
+  return null;
+}
+
+// Helper to scrape and find a working proxy in Vietnam from multiple free sources
+async function getAutomaticFallbackProxy(
+  onProgress?: (step: string, message: string) => void
+): Promise<string | null> {
+  const reused = await tryReuseSavedProxy(onProgress);
+  if (reused) return reused;
 
   if (isScraping) return null;
   isScraping = true;
@@ -75,6 +103,8 @@ async function getAutomaticFallbackProxy(
 
     if (workingProxy) {
       cachedFallbackProxy = workingProxy;
+      await savePersistedProxyUrl(workingProxy);
+      onProgress?.('proxy_saved', `Đã lưu proxy hoạt động để tái sử dụng cho các lần gọi sau: ${workingProxy}`);
       return workingProxy;
     }
 
@@ -151,43 +181,48 @@ async function createClientInstance(
 
   // If no proxy configured, check if we need one
   if (!resolvedProxy) {
-    console.log('[Fallback Proxy] No explicit proxy configured. Checking connection...');
-    onProgress?.(
-      'check_direct_connection',
-      'Đang kiểm tra kết nối trực tiếp đến máy chủ CSDL Dược (có thể mất ~10 giây)...',
-    );
-    let canConnectDirectly = await checkDirectConnection();
-    if (!canConnectDirectly) {
-      console.log('[Fallback Proxy] Connection blocked or slow. Attempting auto fallback proxy selection...');
+    const savedProxy = await tryReuseSavedProxy(onProgress);
+    if (savedProxy) {
+      resolvedProxy = savedProxy;
+    } else {
+      console.log('[Fallback Proxy] No explicit proxy configured. Checking connection...');
       onProgress?.(
-        'direct_connection_blocked',
-        'Kết nối trực tiếp chưa phản hồi kịp. Đang thử tìm proxy Việt Nam tự động...',
+        'check_direct_connection',
+        'Đang kiểm tra kết nối trực tiếp đến máy chủ CSDL Dược (có thể mất ~10 giây)...',
       );
-      const fallback = await getAutomaticFallbackProxy(onProgress);
-      if (fallback) {
-        resolvedProxy = fallback;
-      } else {
+      let canConnectDirectly = await checkDirectConnection();
+      if (!canConnectDirectly) {
+        console.log('[Fallback Proxy] Connection blocked or slow. Attempting auto fallback proxy selection...');
         onProgress?.(
-          'retry_direct_connection',
-          'Proxy tự động không khả dụng. Thử lại kết nối trực tiếp (chờ lâu hơn, ~20 giây)...',
+          'direct_connection_blocked',
+          'Kết nối trực tiếp chưa phản hồi kịp. Đang thử tìm proxy Việt Nam tự động...',
         );
-        canConnectDirectly = await checkDirectConnection(DIRECT_RETRY_TIMEOUT_MS);
-        if (canConnectDirectly) {
-          console.log('[Fallback Proxy] Direct connection succeeded on retry. Running without proxy.');
-          onProgress?.(
-            'direct_connection_success',
-            'Kết nối trực tiếp thành công (chậm nhưng ổn). Không cần proxy.',
-          );
+        const fallback = await getAutomaticFallbackProxy(onProgress);
+        if (fallback) {
+          resolvedProxy = fallback;
         } else {
           onProgress?.(
-            'connection_failed',
-            'Không kết nối được CSDL Dược. Nếu deploy ngoài Việt Nam, hãy nhập Proxy URL VN trả phí rồi thử lại.',
+            'retry_direct_connection',
+            'Proxy tự động không khả dụng. Thử lại kết nối trực tiếp (chờ lâu hơn, ~20 giây)...',
           );
+          canConnectDirectly = await checkDirectConnection(DIRECT_RETRY_TIMEOUT_MS);
+          if (canConnectDirectly) {
+            console.log('[Fallback Proxy] Direct connection succeeded on retry. Running without proxy.');
+            onProgress?.(
+              'direct_connection_success',
+              'Kết nối trực tiếp thành công (chậm nhưng ổn). Không cần proxy.',
+            );
+          } else {
+            onProgress?.(
+              'connection_failed',
+              'Không kết nối được CSDL Dược. Nếu deploy ngoài Việt Nam, hãy nhập Proxy URL VN trả phí rồi thử lại.',
+            );
+          }
         }
+      } else {
+        console.log('[Fallback Proxy] Direct connection is available. Running without proxy.');
+        onProgress?.('direct_connection_success', 'Kết nối trực tiếp thành công! Không cần dùng proxy.');
       }
-    } else {
-      console.log('[Fallback Proxy] Direct connection is available. Running without proxy.');
-      onProgress?.('direct_connection_success', 'Kết nối trực tiếp thành công! Không cần dùng proxy.');
     }
   } else {
     onProgress?.('using_configured_proxy', `Sử dụng cấu hình proxy tùy chọn: ${resolvedProxy}`);
