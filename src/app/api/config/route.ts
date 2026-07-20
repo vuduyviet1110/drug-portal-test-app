@@ -31,105 +31,100 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { csdlDuoc, qd228, proxyUrl } = body;
+  const encoder = new TextEncoder();
+  
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendProgress = (step: string, message: string) => {
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ step, message }) + '\n')
+        );
+      };
 
-    console.log('[API Config POST] Received body:', {
-      csdlDuoc: csdlDuoc ? {
-        username: csdlDuoc.username,
-        password: csdlDuoc.password ? '***' : '',
-        storeId: csdlDuoc.storeId,
-        warehouseCode: csdlDuoc.warehouseCode
-      } : null,
-      qd228: qd228 ? {
-        appName: qd228.appName,
-        appKey: qd228.appKey ? '***' : ''
-      } : null,
-      proxyUrl
-    });
+      try {
+        const body = await request.json();
+        const { csdlDuoc, qd228, proxyUrl } = body;
 
-    // Fetch existing configurations first to prevent password wiping
-    const existing = await prisma.systemConfig.findUnique({
-      where: { id: 'default' },
-    });
+        sendProgress('parse_body', 'Đang nhận dữ liệu cấu hình hệ thống...');
 
-    console.log('[API Config POST] Existing config:', existing ? {
-      duocUsername: existing.duocUsername,
-      hasDuocPassword: !!existing.duocPassword,
-      duocStoreId: existing.duocStoreId,
-      duocWarehouseCode: existing.duocWarehouseCode,
-      qd228AppName: existing.qd228AppName,
-      hasQd228AppKey: !!existing.qd228AppKey,
-      proxyUrl: existing.proxyUrl
-    } : 'null');
+        // Fetch existing configurations first to prevent password wiping
+        const existing = await prisma.systemConfig.findUnique({
+          where: { id: 'default' },
+        });
 
-    const finalPassword =
-      csdlDuoc?.password && csdlDuoc.password !== '••••••••'
-        ? csdlDuoc.password
-        : (existing?.duocPassword || '');
+        const finalPassword =
+          csdlDuoc?.password && csdlDuoc.password !== '••••••••'
+            ? csdlDuoc.password
+            : (existing?.duocPassword || '');
 
-    const finalAppKey =
-      qd228?.appKey && qd228.appKey !== '••••••••'
-        ? qd228.appKey
-        : (existing?.qd228AppKey || '');
+        const finalAppKey =
+          qd228?.appKey && qd228.appKey !== '••••••••'
+            ? qd228.appKey
+            : (existing?.qd228AppKey || '');
 
-    console.log('[API Config POST] Resolved credentials:', {
-      finalPasswordUsedExisting: finalPassword === existing?.duocPassword,
-      finalAppKeyUsedExisting: finalAppKey === existing?.qd228AppKey,
-      finalPasswordLength: finalPassword.length,
-      finalAppKeyLength: finalAppKey.length
-    });
+        sendProgress('save_db', 'Đang lưu trữ thông tin cấu hình vào cơ sở dữ liệu...');
+        
+        // 1. Upsert configuration credentials
+        await prisma.systemConfig.upsert({
+          where: { id: 'default' },
+          create: {
+            id: 'default',
+            duocUsername: csdlDuoc?.username || '',
+            duocPassword: finalPassword,
+            duocStoreId: csdlDuoc?.storeId || null,
+            duocWarehouseCode: csdlDuoc?.warehouseCode || null,
+            qd228AppName: qd228?.appName || null,
+            qd228AppKey: finalAppKey,
+            proxyUrl: proxyUrl || null,
+          },
+          update: {
+            duocUsername: csdlDuoc?.username || '',
+            duocPassword: finalPassword,
+            duocStoreId: csdlDuoc?.storeId || null,
+            duocWarehouseCode: csdlDuoc?.warehouseCode || null,
+            qd228AppName: qd228?.appName || null,
+            qd228AppKey: finalAppKey,
+            proxyUrl: proxyUrl || null,
+          },
+        });
 
-    // 1. Upsert configuration credentials
-    await prisma.systemConfig.upsert({
-      where: { id: 'default' },
-      create: {
-        id: 'default',
-        duocUsername: csdlDuoc?.username || '',
-        duocPassword: finalPassword,
-        duocStoreId: csdlDuoc?.storeId || null,
-        duocWarehouseCode: csdlDuoc?.warehouseCode || null,
-        qd228AppName: qd228?.appName || null,
-        qd228AppKey: finalAppKey,
-        proxyUrl: proxyUrl || null,
-      },
-      update: {
-        duocUsername: csdlDuoc?.username || '',
-        duocPassword: finalPassword,
-        duocStoreId: csdlDuoc?.storeId || null,
-        duocWarehouseCode: csdlDuoc?.warehouseCode || null,
-        qd228AppName: qd228?.appName || null,
-        qd228AppKey: finalAppKey,
-        proxyUrl: proxyUrl || null,
-      },
-    });
+        sendProgress('db_saved', 'Đã lưu cấu hình thành công. Đang tải lại SDK client...');
 
-    console.log('[API Config POST] Database upserted successfully.');
+        // Reset SDK cache to force instantiating with updated credentials
+        resetClient();
 
-    // Reset SDK cache to force instantiating with updated credentials
-    resetClient();
+        // 2. Validate credentials against CSDL Dược Sandbox
+        sendProgress('initiating_validation', 'Đang khởi tạo kết nối và bắt đầu kiểm tra xác thực...');
+        
+        const client = await getClient(sendProgress);
+        
+        if (client && client.csdlDuoc) {
+          sendProgress('verifying_auth', 'Đang đăng nhập và truy xuất thử danh mục từ CSDL Dược...');
+          await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 10 });
+          sendProgress('validation_success', 'Đăng nhập và xác thực kết nối CSDL Dược thành công!');
+        } else {
+          sendProgress('skipping_validation', 'Không có cấu hình CSDL Dược, bỏ qua xác thực.');
+        }
 
-    // 2. Validate credentials against CSDL Dược Sandbox
-    try {
-      console.log('[API Config POST] Initiating validation request against CSDL Dược Sandbox...');
-      const client = await getClient();
-      if (client && client.csdlDuoc) {
-        await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 10 });
-        console.log('[API Config POST] Validation successful!');
-      } else {
-        console.log('[API Config POST] No client or csdlDuoc config, skipping validation');
+        sendProgress('success', 'Tất cả cấu hình đã được áp dụng và hoạt động ổn định!');
+        controller.close();
+      } catch (error: any) {
+        console.error('[API Config POST] Request handler error:', error);
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ error: error.message || 'Lỗi không xác định' }) + '\n')
+        );
+        controller.close();
       }
-    } catch (testError: any) {
-      console.error('[API Config POST] Validation error:', testError);
-      throw new Error(`Đăng nhập thất bại: ${testError.message}`);
     }
+  });
 
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('[API Config POST] Request handler error:', error);
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    }
+  });
 }
 
 export async function DELETE() {

@@ -43,11 +43,15 @@ async function testProxy(proxyUrl: string): Promise<boolean> {
 }
 
 // Helper to scrape and find a working SOCKS5 proxy in Vietnam
-async function getAutomaticFallbackProxy(): Promise<string | null> {
+async function getAutomaticFallbackProxy(
+  onProgress?: (step: string, message: string) => void
+): Promise<string | null> {
   if (cachedFallbackProxy) {
+    onProgress?.('testing_cached_proxy', `Đang kiểm tra lại proxy lưu trong cache: ${cachedFallbackProxy}...`);
     const works = await testProxy(cachedFallbackProxy);
     if (works) {
       console.log(`[Fallback Proxy] Reusing cached proxy: ${cachedFallbackProxy}`);
+      onProgress?.('reusing_cached_proxy', `Đang sử dụng lại proxy hoạt động tốt từ cache: ${cachedFallbackProxy}`);
       return cachedFallbackProxy;
     }
     cachedFallbackProxy = null;
@@ -58,6 +62,7 @@ async function getAutomaticFallbackProxy(): Promise<string | null> {
 
   try {
     console.log('[Fallback Proxy] Scraping fresh Vietnamese HTTP/HTTPS/SOCKS5 proxies from Geonode API...');
+    onProgress?.('scraping_proxies', 'Đang quét danh sách proxy Việt Nam từ Geonode API...');
     const res = await fetch('https://proxylist.geonode.com/api/proxy-list?limit=15&page=1&sort_by=lastChecked&sort_type=desc&country=VN&protocols=http%2Chttps%2Csocks5');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     
@@ -65,6 +70,7 @@ async function getAutomaticFallbackProxy(): Promise<string | null> {
     const proxies = (json.data || []) as { ip: string; port: string; protocols: string[] }[];
     
     console.log(`[Fallback Proxy] Scraped ${proxies.length} proxies. Testing them in parallel...`);
+    onProgress?.('testing_proxies', `Đã quét được ${proxies.length} proxy. Đang kiểm tra kết nối song song...`);
     
     // Test in parallel to find first working one
     const testPromises = proxies.map(async (p) => {
@@ -81,21 +87,26 @@ async function getAutomaticFallbackProxy(): Promise<string | null> {
     
     if (workingProxy) {
       console.log(`[Fallback Proxy] Successfully verified working proxy: ${workingProxy}`);
+      onProgress?.('proxy_found', `Đã tìm thấy proxy kết nối CSDL Dược ổn định: ${workingProxy}`);
       cachedFallbackProxy = workingProxy;
       return workingProxy;
     }
     
     console.log('[Fallback Proxy] No working proxy found in the scraped list.');
+    onProgress?.('proxy_not_found', 'Không tìm thấy proxy Việt Nam nào hoạt động ổn định trong danh sách quét.');
     return null;
   } catch (err: unknown) {
     console.error('[Fallback Proxy] Failed to automatically acquire proxy:', (err as Error).message);
+    onProgress?.('proxy_error', `Lỗi khi lấy proxy tự động: ${(err as Error).message}`);
     return null;
   } finally {
     isScraping = false;
   }
 }
 
-export async function getClient(): Promise<DrugPortalClient | null> {
+export async function getClient(
+  onProgress?: (step: string, message: string) => void
+): Promise<DrugPortalClient | null> {
   if (cachedClient) return cachedClient;
 
   let config = await prisma.systemConfig.findUnique({
@@ -130,7 +141,7 @@ export async function getClient(): Promise<DrugPortalClient | null> {
 
   if (!config) return null;
 
-  return await createClientInstance(config);
+  return await createClientInstance(config, onProgress);
 }
 
 export function resetClient() {
@@ -138,7 +149,10 @@ export function resetClient() {
   cachedFallbackProxy = null; // Clear fallback proxy cache too
 }
 
-async function createClientInstance(config: SystemConfig): Promise<DrugPortalClient> {
+async function createClientInstance(
+  config: SystemConfig,
+  onProgress?: (step: string, message: string) => void
+): Promise<DrugPortalClient> {
   const hasCsdlDuoc = config.duocUsername && config.duocPassword;
   const hasQd228 = config.qd228AppName && config.qd228AppKey;
 
@@ -147,16 +161,21 @@ async function createClientInstance(config: SystemConfig): Promise<DrugPortalCli
   // If no proxy configured, check if we need one
   if (!resolvedProxy) {
     console.log('[Fallback Proxy] No explicit proxy configured. Checking connection...');
+    onProgress?.('check_direct_connection', 'Đang kiểm tra kết nối trực tiếp đến máy chủ CSDL Dược...');
     const canConnectDirectly = await checkDirectConnection();
     if (!canConnectDirectly) {
       console.log('[Fallback Proxy] Connection blocked. Attempting auto fallback proxy selection...');
-      const fallback = await getAutomaticFallbackProxy();
+      onProgress?.('direct_connection_blocked', 'Kết nối trực tiếp bị chặn (vị trí ngoài Việt Nam). Kích hoạt tìm kiếm proxy Việt Nam...');
+      const fallback = await getAutomaticFallbackProxy(onProgress);
       if (fallback) {
         resolvedProxy = fallback;
       }
     } else {
       console.log('[Fallback Proxy] Direct connection is available. Running without proxy.');
+      onProgress?.('direct_connection_success', 'Kết nối trực tiếp thành công! Không cần dùng proxy.');
     }
+  } else {
+    onProgress?.('using_configured_proxy', `Sử dụng cấu hình proxy tùy chọn: ${resolvedProxy}`);
   }
 
   cachedClient = new DrugPortalClient({

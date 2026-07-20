@@ -49,6 +49,7 @@ export default function Home() {
   const [stockReason, setStockReason] = useState('supplier');
   const [stockRef, setStockRef] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [configSteps, setConfigSteps] = useState<{ step: string; message: string; type?: string }[]>([]);
 
   // Dropdown lists
   const [drugsDropdown, setDrugsDropdown] = useState<DrugItem[]>([]);
@@ -137,6 +138,7 @@ export default function Home() {
     e.preventDefault();
     setIsConfiguring(true);
     setSetupError(null);
+    setConfigSteps([]);
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
@@ -156,10 +158,37 @@ export default function Home() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi áp dụng cấu hình');
+      if (!res.ok || !res.body) {
+        throw new Error('Không thể kết nối đến máy chủ API để lưu cấu hình.');
+      }
 
-      alert('✅ Cấu hình kết nối SDK đã được lưu và áp dụng thành công!');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const data = JSON.parse(line);
+          
+          if (data.error) {
+            setConfigSteps(prev => [...prev, { step: 'error', message: data.error, type: 'error' }]);
+            throw new Error(data.error);
+          }
+          
+          setConfigSteps(prev => [...prev, { step: data.step, message: data.message, type: data.step === 'success' || data.step === 'validation_success' ? 'success' : 'info' }]);
+        }
+      }
+
+      // Small delay so they can read the success message
+      await new Promise(r => setTimeout(r, 850));
 
       if (isSetupMode) {
         setIsConfigured(true);
@@ -170,7 +199,6 @@ export default function Home() {
       loadTxHistory();
     } catch (err: any) {
       setSetupError(err.message);
-      alert(`❌ Lỗi lưu cấu hình: ${err.message}`);
     } finally {
       setIsConfiguring(false);
     }
@@ -525,6 +553,7 @@ export default function Home() {
         cfgProxyUrl={cfgProxyUrl}
         setCfgProxyUrl={setCfgProxyUrl}
         isConfiguring={isConfiguring}
+        configSteps={configSteps}
       />
     );
   }
@@ -647,6 +676,7 @@ export default function Home() {
             setCfgProxyUrl={setCfgProxyUrl}
             handleResetSettings={handleResetSettings}
             isConfiguring={isConfiguring}
+            configSteps={configSteps}
           />
         )}
       </main>

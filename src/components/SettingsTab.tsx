@@ -18,6 +18,7 @@ interface SettingsTabProps {
   setCfgProxyUrl: (val: string) => void;
   handleResetSettings: () => void;
   isConfiguring: boolean;
+  configSteps: { step: string; message: string; type?: string }[];
 }
 
 export default function SettingsTab({
@@ -38,10 +39,63 @@ export default function SettingsTab({
   setCfgProxyUrl,
   handleResetSettings,
   isConfiguring,
+  configSteps,
 }: SettingsTabProps) {
   return (
     <div className="animate-fade">
-      <form onSubmit={(e) => handleSaveSettings(e, false)} className="form-card max-w-2xl mx-auto">
+      <form onSubmit={(e) => handleSaveSettings(e, false)} className="form-card max-w-2xl mx-auto relative overflow-hidden">
+        {isConfiguring && (
+          <div className="absolute inset-0 bg-white/95 z-50 flex flex-col items-center justify-center p-6 transition-all duration-300">
+            {/* Radar Scanner Animation Container */}
+            <div className="relative w-40 h-40 rounded-full border-2 border-teal-500/30 flex items-center justify-center overflow-hidden bg-teal-950/5 shadow-[0_0_25px_rgba(20,184,166,0.15)] mb-6">
+              {/* Grid circles */}
+              <div className="absolute w-28 h-28 rounded-full border border-teal-500/20"></div>
+              <div className="absolute w-16 h-16 rounded-full border border-teal-500/10"></div>
+              <div className="absolute w-full h-0.5 bg-teal-500/15"></div>
+              <div className="absolute w-0.5 h-full bg-teal-500/15"></div>
+              
+              {/* Sweep Line */}
+              <div className="absolute top-1/2 left-1/2 w-[200%] h-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full origin-center animate-spin bg-[conic-gradient(from_0deg,transparent_50%,rgba(20,184,166,0.45)_100%)]"></div>
+              
+              {/* Center Dot */}
+              <div className="absolute w-3 h-3 rounded-full bg-teal-400 animate-ping"></div>
+              <div className="absolute w-2 h-2 rounded-full bg-teal-500"></div>
+
+              {/* Dots appearing on radar screen */}
+              <div className="absolute top-10 left-12 w-2 h-2 rounded-full bg-teal-400 opacity-60 animate-[pulse_1s_infinite]"></div>
+              <div className="absolute bottom-12 right-14 w-2 h-2 rounded-full bg-teal-400 opacity-80 animate-[pulse_1.5s_infinite]"></div>
+            </div>
+
+            <div className="text-center space-y-2 mb-6">
+              <h3 className="font-bold text-slate-800 text-sm tracking-wide animate-pulse uppercase">ĐANG THIẾT LẬP KẾT NỐI SDK...</h3>
+              <p className="text-xs text-slate-500 max-w-sm px-4">Đang chạy chuỗi kiểm thử kết nối, tìm kiếm proxy và đăng nhập xác thực. Vui lòng giữ nguyên màn hình.</p>
+            </div>
+
+            {/* Step list logs */}
+            <div className="w-full bg-slate-900 rounded-lg p-4 border border-slate-800 h-44 overflow-y-auto text-left font-mono text-[10px] space-y-1.5 shadow-inner">
+              {configSteps.map((step, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flex items-start space-x-1.5 ${
+                    step.type === 'error' 
+                      ? 'text-rose-400' 
+                      : step.type === 'success' 
+                        ? 'text-emerald-400 font-semibold' 
+                        : 'text-slate-300'
+                  }`}
+                >
+                  <span className="text-slate-600">[{new Date().toLocaleTimeString()}]</span>
+                  <span>
+                    {step.type === 'error' && '❌ '}
+                    {step.type === 'success' && '✅ '}
+                    {step.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <h3 className="card-title">
           <i className="fa-solid fa-gears"></i> Cấu hình kết nối SDK
         </h3>
