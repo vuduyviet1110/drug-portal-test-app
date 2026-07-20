@@ -71,35 +71,32 @@ export default function BackendActivityPanel({
         ref={scrollRef}
         className={`backend-activity-log ${
           isSidebar ? 'backend-activity-log-sidebar' : 'backend-activity-log-default'
-        } ${maxHeightClassName || ''}`}
+        } ${maxHeightClassName}`}
       >
         {entries.length === 0 ? (
-          <div className="backend-activity-entry-info" style={{ fontStyle: 'italic' }}>
-            {emptyMessage}
-          </div>
+          <div className="backend-activity-empty">{emptyMessage}</div>
         ) : (
           entries.map((entry, idx) => {
             const type = stepToType(entry.step, entry.type);
-            const typeClass =
-              type === 'error'
-                ? 'backend-activity-entry-error'
-                : type === 'success'
-                  ? 'backend-activity-entry-success'
-                  : type === 'warn'
-                    ? 'backend-activity-entry-warn'
-                    : 'backend-activity-entry-info';
 
             return (
-              <div key={`${entry.step}-${entry.timestamp || idx}`} className={`backend-activity-entry ${typeClass}`}>
-                <span className="backend-activity-entry-time">[{formatTime(entry.timestamp)}]</span>
-                <span className="backend-activity-entry-step">[{entry.step}]</span>
-                <span>
-                  {type === 'error' && '❌ '}
-                  {type === 'success' && '✅ '}
-                  {type === 'warn' && '⚠️ '}
+              <article
+                key={`${entry.step}-${entry.timestamp || idx}`}
+                className={`backend-activity-entry backend-activity-entry--${type}`}
+              >
+                <div className="backend-activity-entry-meta">
+                  <time className="backend-activity-entry-time">{formatTime(entry.timestamp)}</time>
+                  <span className="backend-activity-step-badge" title={entry.step}>
+                    [{entry.step}]
+                  </span>
+                </div>
+                <p className="backend-activity-entry-message">
+                  {type === 'error' && <span className="backend-activity-entry-icon">❌ </span>}
+                  {type === 'success' && <span className="backend-activity-entry-icon">✅ </span>}
+                  {type === 'warn' && <span className="backend-activity-entry-icon">⚠️ </span>}
                   {entry.message}
-                </span>
-              </div>
+                </p>
+              </article>
             );
           })
         )}
