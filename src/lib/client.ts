@@ -1,6 +1,6 @@
 import { DrugPortalClient } from '@icare1/drug-portal-sdk';
 import { prisma } from './prisma';
-import { ProxyAgent } from 'undici';
+import { ProxyAgent, fetch } from 'undici';
 import { SystemConfig } from '@prisma/client';
 
 let cachedClient: DrugPortalClient | null = null;
@@ -34,7 +34,7 @@ async function testProxy(proxyUrl: string): Promise<boolean> {
       method: 'HEAD',
       signal: controller.signal,
       dispatcher: new ProxyAgent(proxyUrl)
-    } as unknown as RequestInit);
+    } as any);
     clearTimeout(id);
     return true;
   } catch {
@@ -61,7 +61,7 @@ async function getAutomaticFallbackProxy(): Promise<string | null> {
     const res = await fetch('https://proxylist.geonode.com/api/proxy-list?limit=15&page=1&sort_by=lastChecked&sort_type=desc&country=VN&protocols=http%2Chttps%2Csocks5');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     
-    const json = await res.json();
+    const json = (await res.json()) as any;
     const proxies = (json.data || []) as { ip: string; port: string; protocols: string[] }[];
     
     console.log(`[Fallback Proxy] Scraped ${proxies.length} proxies. Testing them in parallel...`);
