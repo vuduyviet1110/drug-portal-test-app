@@ -31,6 +31,11 @@ export async function POST(request: Request) {
     });
 
     // Save transaction to DB
+    const isSuccess = result.status === 'completed';
+    const rawData = (result.raw || {}) as Record<string, unknown>;
+    const messages = rawData.messages || rawData.message || rawData.errors || [];
+    const errorMsg = isSuccess ? null : (Array.isArray(messages) ? messages.join(', ') : String(messages));
+
     await prisma.transactionLog.upsert({
       where: { id: result.transactionId || ref },
       create: {
@@ -41,10 +46,12 @@ export async function POST(request: Request) {
         referenceNumber: ref,
         items: JSON.stringify(items),
         attempts: result.attempts || 1,
+        errorMessage: errorMsg,
       },
       update: {
         status: result.status || 'completed',
         attempts: result.attempts || 1,
+        errorMessage: errorMsg,
       },
     });
 

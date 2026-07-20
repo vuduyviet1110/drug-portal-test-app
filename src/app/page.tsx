@@ -388,7 +388,14 @@ export default function Home() {
       addLog(`Mã giao dịch (Transaction ID): ${result.transactionId}`, 'success');
       addLog(`Trạng thái cuối (Terminal Status): ${result.status.toUpperCase()}`, 'success');
       addLog(`Số lần thử kiểm tra (Attempts): ${result.attempts || 1}`, 'success');
-      addLog('Đồng bộ dữ liệu lên CSDL Dược thành công!', 'success');
+      if (result.status === 'completed') {
+        addLog('Đồng bộ dữ liệu lên CSDL Dược thành công!', 'success');
+      } else {
+        const rawData = result.raw || {};
+        const messages = rawData.messages || rawData.message || rawData.errors || [];
+        const msgStr = Array.isArray(messages) ? messages.join(', ') : String(messages);
+        addLog(`Đồng bộ thất bại: ${msgStr || 'CSDL Dược báo lỗi không xác định'}`, 'error');
+      }
 
       loadTxHistory();
       setStockRef('REF-TX-' + Date.now());
