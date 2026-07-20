@@ -37,6 +37,10 @@ export default function SearchTab({
   backendActivityLogs,
   isBackendActive,
 }: SearchTabProps) {
+  const isLoading = isSearching || isBackendActive;
+  const hasResults = searchResults.length > 0;
+  const showLoadingPlaceholder = isLoading && !hasResults && !catalogError;
+
   return (
     <div className="animate-fade">
       <form onSubmit={handleSearch} className="search-bar !mb-6">
@@ -52,12 +56,16 @@ export default function SearchTab({
         </button>
       </form>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] gap-6 items-start">
-        {/* Main content */}
-        <div className="min-w-0 space-y-6 order-1">
-          {isSearching && backendActivityLogs.length === 0 && (
-            <div className="loading-spinner">
-              <i className="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu từ CSDL Dược...
+      <div className="search-split-layout">
+        <div className="search-split-main">
+          {showLoadingPlaceholder && (
+            <div className="results-card search-status-card">
+              <i className="fa-solid fa-circle-notch fa-spin"></i>
+              <p>
+                <strong>Đang xử lý yêu cầu...</strong>
+                <br />
+                Kết quả sẽ hiển thị tại đây. Theo dõi quy trình backend ở cột bên phải.
+              </p>
             </div>
           )}
 
@@ -79,11 +87,16 @@ export default function SearchTab({
             </div>
           )}
 
-          {!isSearching && !catalogError && searchResults.length > 0 && (
-            <div className="results-card">
+          {hasResults && !catalogError && (
+            <div className={`results-card ${isLoading ? 'search-results-loading' : ''}`}>
               <h3 className="card-title">
                 <i className="fa-solid fa-layer-group"></i>
                 {isSearchActive ? 'Kết quả tìm kiếm' : 'Danh mục thuốc CSDL Dược'} ({searchCount})
+                {isLoading && (
+                  <span className="ml-2 text-xs font-normal text-teal-600">
+                    <i className="fa-solid fa-circle-notch fa-spin"></i> Đang cập nhật...
+                  </span>
+                )}
               </h3>
               <div className="table-responsive">
                 <table className="data-table">
@@ -124,7 +137,7 @@ export default function SearchTab({
                 <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
                   <button
                     onClick={() => loadCatalogDrugs(currentPage - 1)}
-                    disabled={currentPage === 1}
+                    disabled={currentPage === 1 || isLoading}
                     className="action-btn disabled:opacity-40"
                   >
                     <i className="fa-solid fa-chevron-left"></i> Trang trước
@@ -134,7 +147,7 @@ export default function SearchTab({
                   </span>
                   <button
                     onClick={() => loadCatalogDrugs(currentPage + 1)}
-                    disabled={currentPage === totalPages}
+                    disabled={currentPage === totalPages || isLoading}
                     className="action-btn disabled:opacity-40"
                   >
                     Trang sau <i className="fa-solid fa-chevron-right"></i>
@@ -144,23 +157,21 @@ export default function SearchTab({
             </div>
           )}
 
-          {!isSearching && !catalogError && searchResults.length === 0 && (
-            <div className="results-card text-center py-12 text-slate-500">
-              <i className="fa-solid fa-pills text-3xl text-slate-300 mb-3 block"></i>
-              Không tìm thấy thuốc nào trong danh sách.
+          {!isLoading && !catalogError && !hasResults && (
+            <div className="results-card search-status-card">
+              <i className="fa-solid fa-pills"></i>
+              <p>Không tìm thấy thuốc nào trong danh sách.</p>
             </div>
           )}
         </div>
 
-        {/* Backend activity sidebar */}
-        <aside className="order-2 xl:sticky xl:top-4">
+        <aside className="search-split-log">
           <BackendActivityPanel
             variant="sidebar"
             title="Nhật ký backend"
             entries={backendActivityLogs}
             isActive={isBackendActive}
             emptyMessage="Thực hiện tìm kiếm hoặc tải danh mục để xem quy trình xử lý phía server (proxy, kết nối, gọi API)..."
-            className="!mb-0"
           />
         </aside>
       </div>
