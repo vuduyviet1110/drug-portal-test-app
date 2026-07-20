@@ -30,13 +30,13 @@ async function testProxy(proxyUrl: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch('https://www.google.com', {
+    await fetch('https://api-sandbox.csdlduoc.com.vn', {
       method: 'HEAD',
       signal: controller.signal,
       dispatcher: new ProxyAgent(proxyUrl)
     } as unknown as RequestInit);
     clearTimeout(id);
-    return res.status === 200 || res.status === 301 || res.status === 302;
+    return true;
   } catch {
     return false;
   }
