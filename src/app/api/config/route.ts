@@ -90,17 +90,42 @@ export async function POST(request: Request) {
 
         sendProgress('db_saved', 'Đã lưu cấu hình thành công. Đang tải lại SDK client...');
 
-        // Reset SDK cache to force instantiating with updated credentials
-        resetClient();
+        const proxyChanged = (proxyUrl?.trim() || null) !== (existing?.proxyUrl || null);
+        resetClient({ clearProxyCache: proxyChanged });
 
         // 2. Validate credentials against CSDL Dược Sandbox
         sendProgress('initiating_validation', 'Đang khởi tạo kết nối và bắt đầu kiểm tra xác thực...');
-        
+
         const client = await getClient(sendProgress);
-        
+
         if (client && client.csdlDuoc) {
           sendProgress('verifying_auth', 'Đang đăng nhập và truy xuất thử danh mục từ CSDL Dược...');
-          await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 10 });
+
+          const maxAttempts = 3;
+          let lastError: Error | null = null;
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+              if (attempt > 1) {
+                sendProgress(
+                  'verifying_auth_retry',
+                  `Lần thử ${attempt}/${maxAttempts}: máy chủ CSDL Dược phản hồi chậm, đang thử lại...`,
+                );
+                await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+              }
+              await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 10 });
+              lastError = null;
+              break;
+            } catch (err: unknown) {
+              lastError = err instanceof Error ? err : new Error(String(err));
+            }
+          }
+
+          if (lastError) {
+            throw new Error(
+              `${lastError.message}. Gợi ý: nếu deploy ngoài Việt Nam, hãy nhập Proxy URL VN trả phí trong ô cấu hình.`,
+            );
+          }
+
           sendProgress('validation_success', 'Đăng nhập và xác thực kết nối CSDL Dược thành công!');
         } else {
           sendProgress('skipping_validation', 'Không có cấu hình CSDL Dược, bỏ qua xác thực.');
@@ -130,7 +155,7 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     await prisma.systemConfig.deleteMany();
-    resetClient();
+    resetClient({ clearProxyCache: true });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

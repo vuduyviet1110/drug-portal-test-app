@@ -1,5 +1,6 @@
 import React from 'react';
-import { DrugItem } from '../types';
+import { DrugItem, BackendActivityEntry } from '../types';
+import BackendActivityPanel from './BackendActivityPanel';
 
 interface SearchTabProps {
   handleSearch: (e?: React.FormEvent) => Promise<void>;
@@ -15,6 +16,8 @@ interface SearchTabProps {
   totalPages: number;
   currentPage: number;
   loadCatalogDrugs: (page: number) => Promise<void>;
+  backendActivityLogs: BackendActivityEntry[];
+  isBackendActive: boolean;
 }
 
 export default function SearchTab({
@@ -31,6 +34,8 @@ export default function SearchTab({
   totalPages,
   currentPage,
   loadCatalogDrugs,
+  backendActivityLogs,
+  isBackendActive,
 }: SearchTabProps) {
   return (
     <div className="animate-fade">
@@ -47,7 +52,17 @@ export default function SearchTab({
         </button>
       </form>
 
-      {isSearching && (
+      {(isBackendActive || backendActivityLogs.length > 0) && (
+        <BackendActivityPanel
+          title="Nhật ký xử lý backend (tra cứu thuốc)"
+          entries={backendActivityLogs}
+          isActive={isBackendActive}
+          emptyMessage="Đang chờ backend bắt đầu xử lý..."
+          className="mb-6"
+        />
+      )}
+
+      {isSearching && backendActivityLogs.length === 0 && (
         <div className="loading-spinner">
           <i className="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu từ CSDL Dược...
         </div>

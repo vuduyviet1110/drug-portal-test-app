@@ -1,4 +1,6 @@
 import React from 'react';
+import BackendActivityPanel from './BackendActivityPanel';
+import { BackendActivityEntry } from '../types';
 
 interface SettingsTabProps {
   handleSaveSettings: (e: React.FormEvent, isSetupMode: boolean) => Promise<void>;
@@ -18,7 +20,7 @@ interface SettingsTabProps {
   setCfgProxyUrl: (val: string) => void;
   handleResetSettings: () => void;
   isConfiguring: boolean;
-  configSteps: { step: string; message: string; type?: string }[];
+  backendActivityLogs: BackendActivityEntry[];
 }
 
 export default function SettingsTab({
@@ -39,7 +41,7 @@ export default function SettingsTab({
   setCfgProxyUrl,
   handleResetSettings,
   isConfiguring,
-  configSteps,
+  backendActivityLogs,
 }: SettingsTabProps) {
   return (
     <div className="animate-fade">
@@ -71,28 +73,14 @@ export default function SettingsTab({
               <p className="text-xs text-slate-500 max-w-sm px-4">Đang chạy chuỗi kiểm thử kết nối, tìm kiếm proxy và đăng nhập xác thực. Vui lòng giữ nguyên màn hình.</p>
             </div>
 
-            {/* Step list logs */}
-            <div className="w-full bg-slate-900 rounded-lg p-4 border border-slate-800 h-44 overflow-y-auto text-left font-mono text-[10px] space-y-1.5 shadow-inner">
-              {configSteps.map((step, idx) => (
-                <div 
-                  key={idx} 
-                  className={`flex items-start space-x-1.5 ${
-                    step.type === 'error' 
-                      ? 'text-rose-400' 
-                      : step.type === 'success' 
-                        ? 'text-emerald-400 font-semibold' 
-                        : 'text-slate-300'
-                  }`}
-                >
-                  <span className="text-slate-600">[{new Date().toLocaleTimeString()}]</span>
-                  <span>
-                    {step.type === 'error' && '❌ '}
-                    {step.type === 'success' && '✅ '}
-                    {step.message}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <BackendActivityPanel
+              title="Nhật ký thiết lập backend"
+              entries={backendActivityLogs}
+              isActive={isConfiguring}
+              emptyMessage="Đang chờ backend bắt đầu xử lý..."
+              className="w-full !shadow-none !border-0 !p-0 !bg-transparent"
+              maxHeightClassName="h-44"
+            />
           </div>
         )}
 
@@ -159,7 +147,7 @@ export default function SettingsTab({
             onChange={(e) => setCfgProxyUrl(e.target.value)}
           />
           <span className="text-[11px] text-slate-500 leading-relaxed mt-1 block">
-            * Nếu trống, hệ thống sẽ tự động quét & tìm proxy Việt Nam miễn phí (có rủi ro dễ hết hạn/chậm, nên dùng proxy riêng trả phí của bạn để ổn định nhất khi deploy lên Vercel/Cloud nước ngoài).
+            * Nếu trống, hệ thống sẽ tự động quét proxy VN miễn phí từ nhiều nguồn (Geonode, ProxyScrape, Proxifly...). Proxy free chỉ sống vài giờ — phù hợp test, nên dùng proxy riêng trả phí khi deploy production.
           </span>
         </div>
 

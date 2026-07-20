@@ -1,3 +1,10 @@
+export interface BackendActivityEntry {
+  step: string;
+  message: string;
+  type?: 'info' | 'success' | 'error' | 'warn';
+  timestamp?: string;
+}
+
 export interface DrugItem {
   id: string;
   name: string;

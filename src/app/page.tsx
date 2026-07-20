@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { DrugItem, UnitItem, TransactionHistoryItem, PrescriptionItem, PrescriptionData } from '../types';
+import { BackendActivityEntry, DrugItem, UnitItem, TransactionHistoryItem, PrescriptionItem, PrescriptionData } from '../types';
 import Header from '../components/Header';
 import SetupView from '../components/SetupView';
 import SearchTab from '../components/SearchTab';
 import StockTab from '../components/StockTab';
 import PrescriptionTab from '../components/PrescriptionTab';
 import SettingsTab from '../components/SettingsTab';
+import { consumeNdjsonStream } from '../lib/ndjson-stream';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'search' | 'stock' | 'prescription' | 'settings'>('search');
@@ -49,7 +50,8 @@ export default function Home() {
   const [stockReason, setStockReason] = useState('supplier');
   const [stockRef, setStockRef] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [configSteps, setConfigSteps] = useState<{ step: string; message: string; type?: string }[]>([]);
+  const [backendActivityLogs, setBackendActivityLogs] = useState<BackendActivityEntry[]>([]);
+  const [isBackendActive, setIsBackendActive] = useState(false);
 
   // Dropdown lists
   const [drugsDropdown, setDrugsDropdown] = useState<DrugItem[]>([]);
@@ -82,6 +84,17 @@ export default function Home() {
 
   const addLog = (text: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     setLogs((prev) => [...prev, { text, type }]);
+  };
+
+  const appendBackendLog = (step: string, message: string, type?: BackendActivityEntry['type']) => {
+    setBackendActivityLogs((prev) => [
+      ...prev,
+      { step, message, type, timestamp: new Date().toISOString() },
+    ]);
+  };
+
+  const clearBackendLogs = () => {
+    setBackendActivityLogs([]);
   };
 
   // Check database configuration on start
@@ -138,7 +151,7 @@ export default function Home() {
     e.preventDefault();
     setIsConfiguring(true);
     setSetupError(null);
-    setConfigSteps([]);
+    clearBackendLogs();
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
@@ -162,30 +175,9 @@ export default function Home() {
         throw new Error('Không thể kết nối đến máy chủ API để lưu cấu hình.');
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const data = JSON.parse(line);
-          
-          if (data.error) {
-            setConfigSteps(prev => [...prev, { step: 'error', message: data.error, type: 'error' }]);
-            throw new Error(data.error);
-          }
-          
-          setConfigSteps(prev => [...prev, { step: data.step, message: data.message, type: data.step === 'success' || data.step === 'validation_success' ? 'success' : 'info' }]);
-        }
-      }
+      await consumeNdjsonStream<null>(res, (step, message) => {
+        appendBackendLog(step, message);
+      });
 
       // Small delay so they can read the success message
       await new Promise(r => setTimeout(r, 850));
@@ -198,6 +190,7 @@ export default function Home() {
       loadCatalogDrugs(1);
       loadTxHistory();
     } catch (err: any) {
+      appendBackendLog('error', err.message, 'error');
       setSetupError(err.message);
     } finally {
       setIsConfiguring(false);
@@ -263,12 +256,18 @@ export default function Home() {
     setIsSearching(true);
     setIsSearchActive(false);
     setCatalogError(null);
+    clearBackendLogs();
+    setIsBackendActive(true);
     try {
       const res = await fetch(`/api/drugs?page=${pageNumber}&pageSize=${pageSize}`);
-      const data = await res.json();
+      const data = await consumeNdjsonStream<{
+        items?: DrugItem[];
+        totalCount?: number;
+        total?: number;
+      }>(res, appendBackendLog);
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Không thể tải danh sách thuốc từ CSDL Dược');
+      if (!data) {
+        throw new Error('Không nhận được dữ liệu danh mục thuốc từ máy chủ.');
       }
 
       const items = data.items || [];
@@ -276,18 +275,19 @@ export default function Home() {
       setSearchCount(data.totalCount || data.total || items.length);
       setCurrentPage(pageNumber);
 
-      // Populate dropdown for sync tab
       setDrugsDropdown(items);
       if (items.length > 0) {
         setStockDrugId(items[0].registrationNumber || items[0].id);
       }
     } catch (err: any) {
       console.warn('Lỗi tải danh mục thuốc:', err.message);
+      appendBackendLog('error', err.message, 'error');
       setCatalogError(err.message);
       setSearchResults([]);
       setSearchCount(0);
     } finally {
       setIsSearching(false);
+      setIsBackendActive(false);
     }
   }
 
@@ -300,29 +300,35 @@ export default function Home() {
     setIsSearching(true);
     setIsSearchActive(true);
     setCatalogError(null);
+    clearBackendLogs();
+    setIsBackendActive(true);
     try {
       const res = await fetch(`/api/drugs/search?keyword=${encodeURIComponent(searchKeyword)}`);
-      const data = await res.json();
+      const data = await consumeNdjsonStream<{
+        items?: DrugItem[];
+        total?: number;
+      }>(res, appendBackendLog);
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Lỗi tìm kiếm thuốc');
+      if (!data) {
+        throw new Error('Không nhận được dữ liệu tìm kiếm từ máy chủ.');
       }
 
       const items = data.items || [];
       setSearchResults(items);
       setSearchCount(data.total || items.length);
 
-      // Sync dropdown with search results
       if (items.length > 0) {
         setDrugsDropdown(items);
         setStockDrugId(items[0].registrationNumber || items[0].id);
       }
     } catch (err: any) {
+      appendBackendLog('error', err.message, 'error');
       setCatalogError(err.message);
       setSearchResults([]);
       setSearchCount(0);
     } finally {
       setIsSearching(false);
+      setIsBackendActive(false);
     }
   }
 
@@ -553,7 +559,7 @@ export default function Home() {
         cfgProxyUrl={cfgProxyUrl}
         setCfgProxyUrl={setCfgProxyUrl}
         isConfiguring={isConfiguring}
-        configSteps={configSteps}
+        backendActivityLogs={backendActivityLogs}
       />
     );
   }
@@ -608,6 +614,8 @@ export default function Home() {
             totalPages={totalPages}
             currentPage={currentPage}
             loadCatalogDrugs={loadCatalogDrugs}
+            backendActivityLogs={backendActivityLogs}
+            isBackendActive={isBackendActive}
           />
         )}
 
@@ -676,7 +684,7 @@ export default function Home() {
             setCfgProxyUrl={setCfgProxyUrl}
             handleResetSettings={handleResetSettings}
             isConfiguring={isConfiguring}
-            configSteps={configSteps}
+            backendActivityLogs={backendActivityLogs}
           />
         )}
       </main>

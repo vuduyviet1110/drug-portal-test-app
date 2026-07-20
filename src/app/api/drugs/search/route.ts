@@ -1,22 +1,25 @@
-import { NextResponse } from 'next/server';
 import { getClient } from '@/lib/client';
+import { createNdjsonStream } from '@/lib/ndjson-stream';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const keyword = searchParams.get('keyword') || '';
 
-  const client = await getClient();
-  if (!client || !client.csdlDuoc) {
-    return NextResponse.json(
-      { error: 'Client chưa được cấu hình. Vui lòng điền thông tin tài khoản trong tab Cấu hình.' },
-      { status: 400 }
-    );
-  }
+  return createNdjsonStream(async (sendProgress, sendPayload) => {
+    sendProgress('request_received', `Nhận yêu cầu tìm kiếm thuốc với từ khóa "${keyword || '(trống)'}"...`);
+    sendProgress('init_client', 'Đang khởi tạo SDK client và kiểm tra kết nối/proxy...');
 
-  try {
+    const client = await getClient(sendProgress);
+    if (!client || !client.csdlDuoc) {
+      throw new Error('Client chưa được cấu hình. Vui lòng điền thông tin tài khoản trong tab Cấu hình.');
+    }
+
+    sendProgress('calling_api', `Đang gọi CSDL Dược API: drugs.search("${keyword}")...`);
     const result = await client.csdlDuoc.drugs.search(keyword);
-    return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+
+    const itemCount = result.items?.length || 0;
+    const total = result.total || itemCount;
+    sendProgress('api_success', `Tìm kiếm thành công: ${itemCount} kết quả (tổng ~${total}).`);
+    sendPayload({ result });
+  });
 }

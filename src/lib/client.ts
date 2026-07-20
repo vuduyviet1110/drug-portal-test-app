@@ -1,26 +1,34 @@
 import { DrugPortalClient } from '@icare1/drug-portal-sdk';
 import { prisma } from './prisma';
-import { ProxyAgent, fetch } from 'undici';
+import { ProxyAgent, fetch, type RequestInit } from 'undici';
 import { SystemConfig } from '@prisma/client';
+import { findFirstWorkingProxy, scrapeVietnamProxies } from './proxy-scraper';
 
 let cachedClient: DrugPortalClient | null = null;
 let cachedFallbackProxy: string | null = null;
 let isScraping = false;
 
+const CSDL_DUOC_SANDBOX_URL = 'https://api-sandbox.csdlduoc.com.vn';
+const DIRECT_CHECK_TIMEOUT_MS = 10_000;
+const DIRECT_RETRY_TIMEOUT_MS = 20_000;
+const PROXY_TEST_TIMEOUT_MS = 5_000;
+
 // Helper to test if we can reach CSDL Dược Sandbox directly
-async function checkDirectConnection(): Promise<boolean> {
+async function checkDirectConnection(timeoutMs = DIRECT_CHECK_TIMEOUT_MS): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 2000);
-    // HEAD request to the sandbox domain to check availability
-    await fetch('https://api-sandbox.csdlduoc.com.vn', {
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    await fetch(CSDL_DUOC_SANDBOX_URL, {
       method: 'HEAD',
-      signal: controller.signal
+      signal: controller.signal,
     });
     clearTimeout(id);
     return true;
   } catch (err) {
-    console.log('[Fallback Proxy] Direct connection to CSDL Dược Sandbox failed:', (err as Error).message);
+    console.log(
+      `[Fallback Proxy] Direct connection to CSDL Dược Sandbox failed (${timeoutMs}ms):`,
+      (err as Error).message,
+    );
     return false;
   }
 }
@@ -29,12 +37,13 @@ async function checkDirectConnection(): Promise<boolean> {
 async function testProxy(proxyUrl: string): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 3000);
-    await fetch('https://api-sandbox.csdlduoc.com.vn', {
+    const id = setTimeout(() => controller.abort(), PROXY_TEST_TIMEOUT_MS);
+    const proxyRequest: RequestInit = {
       method: 'HEAD',
       signal: controller.signal,
-      dispatcher: new ProxyAgent(proxyUrl)
-    } as any);
+      dispatcher: new ProxyAgent(proxyUrl),
+    };
+    await fetch(CSDL_DUOC_SANDBOX_URL, proxyRequest);
     clearTimeout(id);
     return true;
   } catch {
@@ -42,7 +51,7 @@ async function testProxy(proxyUrl: string): Promise<boolean> {
   }
 }
 
-// Helper to scrape and find a working SOCKS5 proxy in Vietnam
+// Helper to scrape and find a working proxy in Vietnam from multiple free sources
 async function getAutomaticFallbackProxy(
   onProgress?: (step: string, message: string) => void
 ): Promise<string | null> {
@@ -61,39 +70,19 @@ async function getAutomaticFallbackProxy(
   isScraping = true;
 
   try {
-    console.log('[Fallback Proxy] Scraping fresh Vietnamese HTTP/HTTPS/SOCKS5 proxies from Geonode API...');
-    onProgress?.('scraping_proxies', 'Đang quét danh sách proxy Việt Nam từ Geonode API...');
-    const res = await fetch('https://proxylist.geonode.com/api/proxy-list?limit=15&page=1&sort_by=lastChecked&sort_type=desc&country=VN&protocols=http%2Chttps%2Csocks5');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    
-    const json = (await res.json()) as any;
-    const proxies = (json.data || []) as { ip: string; port: string; protocols: string[] }[];
-    
-    console.log(`[Fallback Proxy] Scraped ${proxies.length} proxies. Testing them in parallel...`);
-    onProgress?.('testing_proxies', `Đã quét được ${proxies.length} proxy. Đang kiểm tra kết nối song song...`);
-    
-    // Test in parallel to find first working one
-    const testPromises = proxies.map(async (p) => {
-      const isHttps = p.protocols.includes('https');
-      const isHttp = p.protocols.includes('http');
-      const protocol = isHttps || isHttp ? 'http' : 'socks5';
-      const url = `${protocol}://${p.ip}:${p.port}`;
-      const works = await testProxy(url);
-      return works ? url : null;
-    });
+    const proxies = await scrapeVietnamProxies(onProgress);
+    const workingProxy = await findFirstWorkingProxy(proxies, testProxy, onProgress);
 
-    const results = await Promise.all(testPromises);
-    const workingProxy = results.find(url => url !== null);
-    
     if (workingProxy) {
-      console.log(`[Fallback Proxy] Successfully verified working proxy: ${workingProxy}`);
-      onProgress?.('proxy_found', `Đã tìm thấy proxy kết nối CSDL Dược ổn định: ${workingProxy}`);
       cachedFallbackProxy = workingProxy;
       return workingProxy;
     }
-    
-    console.log('[Fallback Proxy] No working proxy found in the scraped list.');
-    onProgress?.('proxy_not_found', 'Không tìm thấy proxy Việt Nam nào hoạt động ổn định trong danh sách quét.');
+
+    console.log('[Fallback Proxy] No working proxy found across all sources.');
+    onProgress?.(
+      'proxy_not_found',
+      `Không tìm thấy proxy miễn phí nào hoạt động (đã thử ${proxies.length} proxy từ nhiều nguồn). Thử lại sau vài giờ hoặc nhập proxy VN riêng.`,
+    );
     return null;
   } catch (err: unknown) {
     console.error('[Fallback Proxy] Failed to automatically acquire proxy:', (err as Error).message);
@@ -144,9 +133,11 @@ export async function getClient(
   return await createClientInstance(config, onProgress);
 }
 
-export function resetClient() {
+export function resetClient(options?: { clearProxyCache?: boolean }) {
   cachedClient = null;
-  cachedFallbackProxy = null; // Clear fallback proxy cache too
+  if (options?.clearProxyCache) {
+    cachedFallbackProxy = null;
+  }
 }
 
 async function createClientInstance(
@@ -161,14 +152,38 @@ async function createClientInstance(
   // If no proxy configured, check if we need one
   if (!resolvedProxy) {
     console.log('[Fallback Proxy] No explicit proxy configured. Checking connection...');
-    onProgress?.('check_direct_connection', 'Đang kiểm tra kết nối trực tiếp đến máy chủ CSDL Dược...');
-    const canConnectDirectly = await checkDirectConnection();
+    onProgress?.(
+      'check_direct_connection',
+      'Đang kiểm tra kết nối trực tiếp đến máy chủ CSDL Dược (có thể mất ~10 giây)...',
+    );
+    let canConnectDirectly = await checkDirectConnection();
     if (!canConnectDirectly) {
-      console.log('[Fallback Proxy] Connection blocked. Attempting auto fallback proxy selection...');
-      onProgress?.('direct_connection_blocked', 'Kết nối trực tiếp bị chặn (vị trí ngoài Việt Nam). Kích hoạt tìm kiếm proxy Việt Nam...');
+      console.log('[Fallback Proxy] Connection blocked or slow. Attempting auto fallback proxy selection...');
+      onProgress?.(
+        'direct_connection_blocked',
+        'Kết nối trực tiếp chưa phản hồi kịp. Đang thử tìm proxy Việt Nam tự động...',
+      );
       const fallback = await getAutomaticFallbackProxy(onProgress);
       if (fallback) {
         resolvedProxy = fallback;
+      } else {
+        onProgress?.(
+          'retry_direct_connection',
+          'Proxy tự động không khả dụng. Thử lại kết nối trực tiếp (chờ lâu hơn, ~20 giây)...',
+        );
+        canConnectDirectly = await checkDirectConnection(DIRECT_RETRY_TIMEOUT_MS);
+        if (canConnectDirectly) {
+          console.log('[Fallback Proxy] Direct connection succeeded on retry. Running without proxy.');
+          onProgress?.(
+            'direct_connection_success',
+            'Kết nối trực tiếp thành công (chậm nhưng ổn). Không cần proxy.',
+          );
+        } else {
+          onProgress?.(
+            'connection_failed',
+            'Không kết nối được CSDL Dược. Nếu deploy ngoài Việt Nam, hãy nhập Proxy URL VN trả phí rồi thử lại.',
+          );
+        }
       }
     } else {
       console.log('[Fallback Proxy] Direct connection is available. Running without proxy.');
