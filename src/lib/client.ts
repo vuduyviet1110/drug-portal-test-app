@@ -57,18 +57,21 @@ async function getAutomaticFallbackProxy(): Promise<string | null> {
   isScraping = true;
 
   try {
-    console.log('[Fallback Proxy] Scraping fresh Vietnamese SOCKS5 proxies from Geonode API...');
-    const res = await fetch('https://proxylist.geonode.com/api/proxy-list?limit=15&page=1&sort_by=lastChecked&sort_type=desc&country=VN&protocols=socks5');
+    console.log('[Fallback Proxy] Scraping fresh Vietnamese HTTP/HTTPS/SOCKS5 proxies from Geonode API...');
+    const res = await fetch('https://proxylist.geonode.com/api/proxy-list?limit=15&page=1&sort_by=lastChecked&sort_type=desc&country=VN&protocols=http%2Chttps%2Csocks5');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     
     const json = await res.json();
-    const proxies = (json.data || []) as { ip: string; port: string }[];
+    const proxies = (json.data || []) as { ip: string; port: string; protocols: string[] }[];
     
     console.log(`[Fallback Proxy] Scraped ${proxies.length} proxies. Testing them in parallel...`);
     
     // Test in parallel to find first working one
     const testPromises = proxies.map(async (p) => {
-      const url = `socks5://${p.ip}:${p.port}`;
+      const isHttps = p.protocols.includes('https');
+      const isHttp = p.protocols.includes('http');
+      const protocol = isHttps || isHttp ? 'http' : 'socks5';
+      const url = `${protocol}://${p.ip}:${p.port}`;
       const works = await testProxy(url);
       return works ? url : null;
     });
