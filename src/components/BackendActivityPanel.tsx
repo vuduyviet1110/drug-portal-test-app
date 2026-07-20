@@ -10,6 +10,7 @@ interface BackendActivityPanelProps {
   emptyMessage?: string;
   className?: string;
   maxHeightClassName?: string;
+  variant?: 'default' | 'sidebar';
 }
 
 function stepToType(step: string, explicit?: BackendActivityEntry['type']): BackendActivityEntry['type'] {
@@ -46,9 +47,14 @@ export default function BackendActivityPanel({
   isActive = false,
   emptyMessage = 'Chưa có hoạt động backend nào.',
   className = '',
-  maxHeightClassName = 'max-h-52',
+  maxHeightClassName,
+  variant = 'default',
 }: BackendActivityPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isSidebar = variant === 'sidebar';
+  const resolvedMaxHeight =
+    maxHeightClassName ||
+    (isSidebar ? 'min-h-[280px] max-h-[calc(100vh-240px)]' : 'max-h-52');
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -57,16 +63,22 @@ export default function BackendActivityPanel({
   }, [entries, isActive]);
 
   return (
-    <div className={`results-card ${className}`}>
-      <h3 className="card-title">
+    <div
+      className={`results-card ${isSidebar ? 'border-l-4 border-l-teal-500 shadow-sm' : ''} ${className}`}
+    >
+      <h3 className={`card-title ${isSidebar ? '!text-xs' : ''}`}>
         <i className={`fa-solid ${isActive ? 'fa-circle-notch fa-spin' : 'fa-terminal'}`}></i>
-        {title}
-        {isActive && <span className="ml-2 text-[10px] font-normal text-teal-600 uppercase tracking-wide">Đang chạy...</span>}
+        <span className={isSidebar ? 'leading-snug' : ''}>{title}</span>
+        {isActive && (
+          <span className="ml-auto text-[10px] font-normal text-teal-600 uppercase tracking-wide shrink-0">
+            Đang chạy...
+          </span>
+        )}
       </h3>
 
       <div
         ref={scrollRef}
-        className={`bg-slate-900 rounded-lg p-4 border border-slate-800 overflow-y-auto text-left font-mono text-[10px] space-y-1.5 shadow-inner ${maxHeightClassName}`}
+        className={`bg-slate-900 rounded-lg p-3 border border-slate-800 overflow-y-auto text-left font-mono text-[10px] leading-relaxed space-y-1.5 shadow-inner ${resolvedMaxHeight}`}
       >
         {entries.length === 0 ? (
           <div className="text-slate-500 italic">{emptyMessage}</div>
