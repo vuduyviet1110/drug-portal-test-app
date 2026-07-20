@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { ensureSchema, prisma } from '@/lib/prisma';
 import { resetClient, getClient } from '@/lib/client';
 import { clearPersistedProxyUrl } from '@/lib/proxy-persistence';
 
@@ -47,6 +47,8 @@ export async function POST(request: Request) {
         const { csdlDuoc, qd228, proxyUrl } = body;
 
         sendProgress('parse_body', 'Đang nhận dữ liệu cấu hình hệ thống...');
+
+        await ensureSchema();
 
         // Fetch existing configurations first to prevent password wiping
         const existing = await prisma.systemConfig.findUnique({

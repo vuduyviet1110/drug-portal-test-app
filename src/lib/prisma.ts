@@ -24,3 +24,21 @@ const createPrismaClient = () => {
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+let schemaReady: Promise<void> | null = null;
+
+/** Apply additive schema changes at runtime (serverless has no build-time DB access). */
+export function ensureSchema(): Promise<void> {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      try {
+        await prisma.$executeRawUnsafe(
+          `ALTER TABLE "SystemConfig" ADD COLUMN IF NOT EXISTS "autoResolvedProxyUrl" TEXT`,
+        );
+      } catch (err) {
+        console.warn('[Schema] ensureSchema failed:', (err as Error).message);
+      }
+    })();
+  }
+  return schemaReady;
+}

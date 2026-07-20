@@ -1,14 +1,21 @@
-import { prisma } from './prisma';
+import { ensureSchema, prisma } from './prisma';
 
 export async function loadPersistedProxyUrl(): Promise<string | null> {
-  const config = await prisma.systemConfig.findUnique({
-    where: { id: 'default' },
-    select: { autoResolvedProxyUrl: true },
-  });
-  return config?.autoResolvedProxyUrl?.trim() || null;
+  await ensureSchema();
+  try {
+    const config = await prisma.systemConfig.findUnique({
+      where: { id: 'default' },
+      select: { autoResolvedProxyUrl: true },
+    });
+    return config?.autoResolvedProxyUrl?.trim() || null;
+  } catch (err) {
+    console.warn('[Fallback Proxy] Failed to load persisted proxy:', (err as Error).message);
+    return null;
+  }
 }
 
 export async function savePersistedProxyUrl(proxyUrl: string): Promise<void> {
+  await ensureSchema();
   try {
     await prisma.systemConfig.update({
       where: { id: 'default' },
@@ -20,6 +27,7 @@ export async function savePersistedProxyUrl(proxyUrl: string): Promise<void> {
 }
 
 export async function clearPersistedProxyUrl(): Promise<void> {
+  await ensureSchema();
   try {
     await prisma.systemConfig.update({
       where: { id: 'default' },
