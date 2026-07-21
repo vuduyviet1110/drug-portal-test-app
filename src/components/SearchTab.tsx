@@ -301,7 +301,7 @@ export default function SearchTab({
                         ? drugDetail.activeIngredients
                             .map((i: { name?: string; concentration?: string }) => `${i.name || ''} ${i.concentration ? `(${i.concentration})` : ''}`)
                             .join(', ')
-                        : 'Không tìm thấy thông tin hoạt chất'}
+                        : drugDetail.activePharmaceuticalIngredient || 'Không tìm thấy thông tin hoạt chất'}
                     </span>
                   </div>
                 </div>
