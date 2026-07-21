@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { DrugItem, BackendActivityEntry } from '../types';
 import BackendActivityPanel from './BackendActivityPanel';
 
@@ -40,6 +40,33 @@ export default function SearchTab({
   const isLoading = isSearching || isBackendActive;
   const hasResults = searchResults.length > 0;
   const showLoadingPlaceholder = isLoading && !hasResults && !catalogError;
+
+  const [selectedDrugId, setSelectedDrugId] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [drugDetail, setDrugDetail] = useState<any | null>(null);
+  const [isFetchingDetail, setIsFetchingDetail] = useState<boolean>(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const handleViewDetail = async (id: string) => {
+    setSelectedDrugId(id);
+    setIsFetchingDetail(true);
+    setDrugDetail(null);
+    setDetailError(null);
+    try {
+      const res = await fetch(`/api/drugs/${encodeURIComponent(id)}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Không thể tải thông tin chi tiết thuốc.');
+      }
+      const data = await res.json();
+      setDrugDetail(data);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      setDetailError(err.message);
+    } finally {
+      setIsFetchingDetail(false);
+    }
+  };
 
   return (
     <div className="animate-fade">
@@ -123,9 +150,14 @@ export default function SearchTab({
                           <span className="badge-custom success">{item.source.toUpperCase()}</span>
                         </td>
                         <td>
-                          <button className="action-btn" onClick={() => handleSelectDrugForSync(item)}>
-                            <i className="fa-solid fa-cart-plus"></i> Chọn nhập/xuất
-                          </button>
+                          <div className="flex gap-2">
+                            <button className="action-btn" onClick={() => handleViewDetail(item.id)}>
+                              <i className="fa-solid fa-circle-info"></i> Chi tiết
+                            </button>
+                            <button className="action-btn" onClick={() => handleSelectDrugForSync(item)}>
+                              <i className="fa-solid fa-cart-plus"></i> Chọn
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -175,6 +207,134 @@ export default function SearchTab({
           />
         </aside>
       </div>
+
+      {/* Drug Detail Modal */}
+      {selectedDrugId !== null && (
+        <div className="modal-overlay" onClick={() => setSelectedDrugId(null)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <i className="fa-solid fa-pills"></i> Chi tiết thông tin thuốc
+              </h3>
+              <button className="modal-close-btn" onClick={() => setSelectedDrugId(null)}>
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              {isFetchingDetail ? (
+                <div className="text-center py-8">
+                  <i className="fa-solid fa-circle-notch fa-spin text-2xl text-teal-600 mb-2"></i>
+                  <p className="text-sm text-slate-500">Đang tải thông tin chi tiết từ CSDL Dược...</p>
+                </div>
+              ) : detailError ? (
+                <div className="p-4 border border-rose-200 bg-rose-50 text-rose-700 rounded-lg text-sm">
+                  <i className="fa-solid fa-circle-exclamation mr-1.5"></i>
+                  {detailError}
+                </div>
+              ) : drugDetail ? (
+                <div className="detail-grid">
+                  <div className="detail-item detail-full-width">
+                    <span className="detail-label">Tên thuốc</span>
+                    <span className="detail-value text-base text-teal-700 font-bold">{drugDetail.name}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Mã thuốc (ID)</span>
+                    <span className="detail-value">{drugDetail.id}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Mã Thuốc Quốc Gia</span>
+                    <span className="detail-value">{drugDetail.maThuocQg || 'Chưa cập nhật'}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Số đăng ký</span>
+                    <span className="detail-value">
+                      <span className="badge-custom">{drugDetail.registrationNumber || 'Chưa cập nhật'}</span>
+                    </span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Hàm lượng</span>
+                    <span className="detail-value">{drugDetail.strength || 'Chưa cập nhật'}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Dạng bào chế</span>
+                    <span className="detail-value">{drugDetail.dosageForm || 'Chưa cập nhật'}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Đường dùng</span>
+                    <span className="detail-value">{drugDetail.route?.name || 'Chưa cập nhật'}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Đơn vị cơ bản</span>
+                    <span className="detail-value">{drugDetail.basicUnitName || 'Chưa cập nhật'}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Tỷ lệ quy đổi</span>
+                    <span className="detail-value">{drugDetail.conversionRate || '1.0'}</span>
+                  </div>
+
+                  <div className="detail-item detail-full-width">
+                    <span className="detail-label">Nhà sản xuất</span>
+                    <span className="detail-value">
+                      {drugDetail.manufacturer?.name || 'Chưa cập nhật'}
+                      {drugDetail.manufacturer?.country && ` (${drugDetail.manufacturer.country})`}
+                    </span>
+                  </div>
+
+                  <div className="detail-item detail-full-width">
+                    <span className="detail-label">Nước sản xuất</span>
+                    <span className="detail-value">{drugDetail.countryOfManufacture || 'Chưa cập nhật'}</span>
+                  </div>
+
+                  <div className="detail-item detail-full-width">
+                    <span className="detail-label">Danh sách hoạt chất</span>
+                    <span className="detail-value">
+                      {drugDetail.activeIngredients && drugDetail.activeIngredients.length > 0
+                        ? drugDetail.activeIngredients
+                            .map((i: { name?: string; concentration?: string }) => `${i.name || ''} ${i.concentration ? `(${i.concentration})` : ''}`)
+                            .join(', ')
+                        : 'Không tìm thấy thông tin hoạt chất'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-slate-400 py-4">Không có dữ liệu.</div>
+              )}
+            </div>
+            
+            <div className="modal-footer">
+              {drugDetail && (
+                <button
+                  className="submit-btn"
+                  onClick={() => {
+                    handleSelectDrugForSync(drugDetail);
+                    setSelectedDrugId(null);
+                  }}
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                >
+                  <i className="fa-solid fa-cart-plus"></i> Chọn nhập/xuất
+                </button>
+              )}
+              <button
+                className="action-btn"
+                onClick={() => setSelectedDrugId(null)}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
