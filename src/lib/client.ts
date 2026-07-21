@@ -1,127 +1,8 @@
-import { DrugPortalClient } from '@icare1/drug-portal-sdk';
+import { DrugPortalClient, clearFallbackProxyCache } from '@icare1/drug-portal-sdk';
 import { prisma } from './prisma';
-import { ProxyAgent, fetch, type RequestInit } from 'undici';
 import { SystemConfig } from '@prisma/client';
-import { findFirstWorkingProxy, scrapeVietnamProxies } from './proxy-scraper';
-import {
-  clearPersistedProxyUrl,
-  loadPersistedProxyUrl,
-  savePersistedProxyUrl,
-} from './proxy-persistence';
 
 let cachedClient: DrugPortalClient | null = null;
-let cachedFallbackProxy: string | null = null;
-let isScraping = false;
-
-const CSDL_DUOC_SANDBOX_URL = 'https://api-sandbox.csdlduoc.com.vn';
-const DIRECT_CHECK_TIMEOUT_MS = 10_000;
-const DIRECT_RETRY_TIMEOUT_MS = 20_000;
-const PROXY_TEST_TIMEOUT_MS = 5_000;
-
-// Helper to test if we can reach CSDL Dược Sandbox directly
-async function checkDirectConnection(timeoutMs = DIRECT_CHECK_TIMEOUT_MS): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
-    await fetch(CSDL_DUOC_SANDBOX_URL, {
-      method: 'HEAD',
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    return true;
-  } catch (err) {
-    console.log(
-      `[Fallback Proxy] Direct connection to CSDL Dược Sandbox failed (${timeoutMs}ms):`,
-      (err as Error).message,
-    );
-    return false;
-  }
-}
-
-// Helper to test if a proxy is alive
-async function testProxy(proxyUrl: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), PROXY_TEST_TIMEOUT_MS);
-    const proxyRequest: RequestInit = {
-      method: 'HEAD',
-      signal: controller.signal,
-      dispatcher: new ProxyAgent(proxyUrl),
-    };
-    await fetch(CSDL_DUOC_SANDBOX_URL, proxyRequest);
-    clearTimeout(id);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Try in-memory cache, then proxy saved in DB from a previous successful login/request.
-async function tryReuseSavedProxy(
-  onProgress?: (step: string, message: string) => void,
-): Promise<string | null> {
-  if (cachedFallbackProxy) {
-    onProgress?.('testing_cached_proxy', `Đang kiểm tra lại proxy trong bộ nhớ: ${cachedFallbackProxy}...`);
-    const works = await testProxy(cachedFallbackProxy);
-    if (works) {
-      onProgress?.('reusing_cached_proxy', `Đang dùng lại proxy từ bộ nhớ: ${cachedFallbackProxy}`);
-      return cachedFallbackProxy;
-    }
-    cachedFallbackProxy = null;
-  }
-
-  const persistedProxy = await loadPersistedProxyUrl();
-  if (!persistedProxy) return null;
-
-  onProgress?.('testing_saved_proxy', `Đang thử lại proxy đã lưu khi đăng nhập: ${persistedProxy}...`);
-  const works = await testProxy(persistedProxy);
-  if (works) {
-    cachedFallbackProxy = persistedProxy;
-    onProgress?.('reusing_saved_proxy', `Proxy đã lưu vẫn hoạt động, bỏ qua bước quét mới: ${persistedProxy}`);
-    return persistedProxy;
-  }
-
-  onProgress?.('saved_proxy_expired', 'Proxy đã lưu không còn hoạt động. Bắt đầu quét proxy mới...');
-  cachedFallbackProxy = null;
-  await clearPersistedProxyUrl();
-  return null;
-}
-
-// Helper to scrape and find a working proxy in Vietnam from multiple free sources
-async function getAutomaticFallbackProxy(
-  onProgress?: (step: string, message: string) => void
-): Promise<string | null> {
-  const reused = await tryReuseSavedProxy(onProgress);
-  if (reused) return reused;
-
-  if (isScraping) return null;
-  isScraping = true;
-
-  try {
-    const proxies = await scrapeVietnamProxies(onProgress);
-    const workingProxy = await findFirstWorkingProxy(proxies, testProxy, onProgress);
-
-    if (workingProxy) {
-      cachedFallbackProxy = workingProxy;
-      await savePersistedProxyUrl(workingProxy);
-      onProgress?.('proxy_saved', `Đã lưu proxy hoạt động để tái sử dụng cho các lần gọi sau: ${workingProxy}`);
-      return workingProxy;
-    }
-
-    console.log('[Fallback Proxy] No working proxy found across all sources.');
-    onProgress?.(
-      'proxy_not_found',
-      `Không tìm thấy proxy miễn phí nào hoạt động (đã thử ${proxies.length} proxy từ nhiều nguồn). Thử lại sau vài giờ hoặc nhập proxy VN riêng.`,
-    );
-    return null;
-  } catch (err: unknown) {
-    console.error('[Fallback Proxy] Failed to automatically acquire proxy:', (err as Error).message);
-    onProgress?.('proxy_error', `Lỗi khi lấy proxy tự động: ${(err as Error).message}`);
-    return null;
-  } finally {
-    isScraping = false;
-  }
-}
 
 export async function getClient(
   onProgress?: (step: string, message: string) => void
@@ -163,11 +44,9 @@ export async function getClient(
   return await createClientInstance(config, onProgress);
 }
 
-export function resetClient(options?: { clearProxyCache?: boolean }) {
+export function resetClient() {
   cachedClient = null;
-  if (options?.clearProxyCache) {
-    cachedFallbackProxy = null;
-  }
+  clearFallbackProxyCache();
 }
 
 async function createClientInstance(
@@ -177,60 +56,11 @@ async function createClientInstance(
   const hasCsdlDuoc = config.duocUsername && config.duocPassword;
   const hasQd228 = config.qd228AppName && config.qd228AppKey;
 
-  let resolvedProxy: string | undefined = config.proxyUrl || undefined;
-
-  // If no proxy configured, check if we need one
-  if (!resolvedProxy) {
-    const savedProxy = await tryReuseSavedProxy(onProgress);
-    if (savedProxy) {
-      resolvedProxy = savedProxy;
-    } else {
-      console.log('[Fallback Proxy] No explicit proxy configured. Checking connection...');
-      onProgress?.(
-        'check_direct_connection',
-        'Đang kiểm tra kết nối trực tiếp đến máy chủ CSDL Dược (có thể mất ~10 giây)...',
-      );
-      let canConnectDirectly = await checkDirectConnection();
-      if (!canConnectDirectly) {
-        console.log('[Fallback Proxy] Connection blocked or slow. Attempting auto fallback proxy selection...');
-        onProgress?.(
-          'direct_connection_blocked',
-          'Kết nối trực tiếp chưa phản hồi kịp. Đang thử tìm proxy Việt Nam tự động...',
-        );
-        const fallback = await getAutomaticFallbackProxy(onProgress);
-        if (fallback) {
-          resolvedProxy = fallback;
-        } else {
-          onProgress?.(
-            'retry_direct_connection',
-            'Proxy tự động không khả dụng. Thử lại kết nối trực tiếp (chờ lâu hơn, ~20 giây)...',
-          );
-          canConnectDirectly = await checkDirectConnection(DIRECT_RETRY_TIMEOUT_MS);
-          if (canConnectDirectly) {
-            console.log('[Fallback Proxy] Direct connection succeeded on retry. Running without proxy.');
-            onProgress?.(
-              'direct_connection_success',
-              'Kết nối trực tiếp thành công (chậm nhưng ổn). Không cần proxy.',
-            );
-          } else {
-            onProgress?.(
-              'connection_failed',
-              'Không kết nối được CSDL Dược. Nếu deploy ngoài Việt Nam, hãy nhập Proxy URL VN trả phí rồi thử lại.',
-            );
-          }
-        }
-      } else {
-        console.log('[Fallback Proxy] Direct connection is available. Running without proxy.');
-        onProgress?.('direct_connection_success', 'Kết nối trực tiếp thành công! Không cần dùng proxy.');
-      }
-    }
-  } else {
-    onProgress?.('using_configured_proxy', `Sử dụng cấu hình proxy tùy chọn: ${resolvedProxy}`);
-  }
-
   cachedClient = new DrugPortalClient({
     environment: 'sandbox',
-    proxyUrl: resolvedProxy,
+    proxyUrl: config.proxyUrl || undefined,
+    autoFallbackProxy: !config.proxyUrl,
+    onProxyProgress: onProgress,
     csdlDuoc: hasCsdlDuoc
       ? {
           username: config.duocUsername,

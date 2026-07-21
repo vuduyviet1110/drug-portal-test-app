@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ensureSchema, prisma } from '@/lib/prisma';
 import { resetClient, getClient } from '@/lib/client';
-import { clearPersistedProxyUrl } from '@/lib/proxy-persistence';
 
 export async function GET() {
   try {
@@ -97,10 +96,12 @@ export async function POST(request: Request) {
 
         sendProgress('db_saved', 'Đã lưu cấu hình thành công. Đang tải lại SDK client...');
 
-        const proxyChanged = explicitProxy !== (existing?.proxyUrl || null);
-        resetClient({ clearProxyCache: proxyChanged });
+        resetClient();
         if (explicitProxy) {
-          await clearPersistedProxyUrl();
+          await prisma.systemConfig.update({
+            where: { id: 'default' },
+            data: { autoResolvedProxyUrl: null },
+          });
         }
 
         // 2. Validate credentials against CSDL Dược Sandbox
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     await prisma.systemConfig.deleteMany();
-    resetClient({ clearProxyCache: true });
+    resetClient();
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
