@@ -59,10 +59,10 @@ export default function SetupView({
               <div className="absolute w-16 h-16 rounded-full border border-teal-500/10"></div>
               <div className="absolute w-full h-0.5 bg-teal-500/15"></div>
               <div className="absolute w-0.5 h-full bg-teal-500/15"></div>
-              
+
               {/* Sweep Line */}
               <div className="absolute top-1/2 left-1/2 w-[200%] h-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full origin-center animate-spin bg-[conic-gradient(from_0deg,transparent_50%,rgba(20,184,166,0.45)_100%)]"></div>
-              
+
               {/* Center Dot */}
               <div className="absolute w-3 h-3 rounded-full bg-teal-400 animate-ping"></div>
               <div className="absolute w-2 h-2 rounded-full bg-teal-500"></div>
@@ -158,7 +158,7 @@ export default function SetupView({
             onChange={(e) => setCfgProxyUrl(e.target.value)}
           />
           <span className="text-[10px] text-slate-500 leading-relaxed mt-1 block">
-            * Nếu trống, hệ thống sẽ tự động quét proxy VN miễn phí từ nhiều nguồn (Geonode, ProxyScrape, Proxifly...). Proxy free chỉ sống vài giờ — phù hợp test, nên dùng proxy riêng trả phí khi deploy production.
+            * Nếu trống, hệ thống sẽ tự động quét proxy VN miễn phí từ nhiều nguồn (Geonode, ProxyScrape, Proxifly...). Proxy free chỉ sống vài giờ — phù hợp test, nên dùng proxy riêng trả phí khi deploy production hoặc xin bên dược whitelist IP của bạn
           </span>
         </div>
 

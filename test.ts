@@ -50,10 +50,10 @@ async function run() {
   // ─── TEST 2: Master Data ──────────────────────────────────────────
   console.log('\n--- TEST 2: Fetching Master Data ---');
   try {
-    const units = await client.csdlDuoc.masterData.getUnits({ page: 1, pageSize: 5 });
+    const units = await client.csdlDuoc.masterData.getUnits(undefined, { page: 1, pageSize: 5 });
     console.log('✅ Fetch Units success! Sample:', units.map(u => u.name));
 
-    const routes = await client.csdlDuoc.masterData.getRoutes({ page: 1, pageSize: 5 });
+    const routes = await client.csdlDuoc.masterData.getRoutes(undefined, { page: 1, pageSize: 5 });
     console.log('✅ Fetch Routes success! Sample:', routes.map(r => r.name));
   } catch (error) {
     console.error('❌ Master Data fetch failed:', (error as Error).message);
@@ -107,7 +107,7 @@ async function run() {
       console.log('✅ Prescription Lookup success!');
       console.log('Details:', {
         patientName: prescription.patientName,
-        diagnose: prescription.diagnose,
+        diagnosis: prescription.diagnosis,
         doctorName: prescription.doctorName,
         itemCount: prescription.items.length,
       });

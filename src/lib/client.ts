@@ -55,12 +55,23 @@ async function createClientInstance(
 ): Promise<DrugPortalClient> {
   const hasCsdlDuoc = config.duocUsername && config.duocPassword;
   const hasQd228 = config.qd228AppName && config.qd228AppKey;
+  const resolvedProxy = config.proxyUrl || config.autoResolvedProxyUrl || undefined;
 
   cachedClient = new DrugPortalClient({
     environment: 'sandbox',
-    proxyUrl: config.proxyUrl || undefined,
+    proxyUrl: resolvedProxy,
     autoFallbackProxy: !config.proxyUrl,
     onProxyProgress: onProgress,
+    onProxyResolved: async (proxyUrl) => {
+      try {
+        await prisma.systemConfig.update({
+          where: { id: 'default' },
+          data: { autoResolvedProxyUrl: proxyUrl },
+        });
+      } catch (err) {
+        console.warn('[Fallback Proxy] Failed to persist auto-resolved proxy:', err);
+      }
+    },
     csdlDuoc: hasCsdlDuoc
       ? {
           username: config.duocUsername,
