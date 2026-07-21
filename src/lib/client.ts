@@ -61,6 +61,7 @@ async function createClientInstance(
     environment: 'sandbox',
     proxyUrl: resolvedProxy,
     autoFallbackProxy: !config.proxyUrl,
+    useMock: config.useMock || undefined,
     onProxyProgress: onProgress,
     onProxyResolved: async (proxyUrl) => {
       try {

@@ -18,6 +18,8 @@ interface SettingsTabProps {
   setCfgRxAppKey: (val: string) => void;
   cfgProxyUrl: string;
   setCfgProxyUrl: (val: string) => void;
+  cfgUseMock: boolean;
+  setCfgUseMock: (val: boolean) => void;
   handleResetSettings: () => void;
   isConfiguring: boolean;
   backendActivityLogs: BackendActivityEntry[];
@@ -39,6 +41,8 @@ export default function SettingsTab({
   setCfgRxAppKey,
   cfgProxyUrl,
   setCfgProxyUrl,
+  cfgUseMock,
+  setCfgUseMock,
   handleResetSettings,
   isConfiguring,
   backendActivityLogs,
@@ -88,91 +92,114 @@ export default function SettingsTab({
           <i className="fa-solid fa-gears"></i> Cấu hình kết nối SDK
         </h3>
 
-        <h4 className="sub-title">CƠ SỞ DỮ LIỆU DƯỢC QUỐC GIA (QĐ 522)</h4>
-
-        <div className="form-group">
-          <label htmlFor="cfg-duoc-user">Tài khoản CSDL Dược *</label>
+        {/* Mock Mode Toggle */}
+        <div className="p-3.5 mb-6 rounded-lg border border-teal-200 bg-teal-50/50 flex items-center justify-between">
+          <div className="flex items-start gap-2.5">
+            <i className="fa-solid fa-vial text-teal-600 text-base mt-0.5 animate-[pulse_1.5s_infinite]"></i>
+            <div>
+              <label htmlFor="settings-use-mock" className="font-bold text-slate-800 text-xs block cursor-pointer">Sử dụng chế độ giả lập (Mock Mode)</label>
+              <span className="text-[10px] text-slate-500 leading-normal block">Không cần tài khoản thật. Thích hợp để test nhanh giao diện & SDK.</span>
+            </div>
+          </div>
           <input
-            type="text"
-            id="cfg-duoc-user"
-            required
-            value={cfgDuocUser}
-            onChange={(e) => setCfgDuocUser(e.target.value)}
+            type="checkbox"
+            id="settings-use-mock"
+            className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+            checked={cfgUseMock}
+            onChange={(e) => setCfgUseMock(e.target.checked)}
           />
         </div>
-
-        <div className="form-group">
-          <label htmlFor="cfg-duoc-pass">Mật khẩu CSDL Dược *</label>
-          <input
-            type="password"
-            id="cfg-duoc-pass"
-            placeholder="••••••••"
-            value={cfgDuocPass}
-            onChange={(e) => setCfgDuocPass(e.target.value)}
-            autoComplete="new-password"
-          />
-          <span className="text-[11px] text-slate-500">
-            * Để trống nếu không muốn cập nhật lại mật khẩu cũ.
-          </span>
-        </div>
-
-        <div className="form-row">
+ 
+        <div className={`transition-all duration-300 ${cfgUseMock ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          <h4 className="sub-title">CƠ SỞ DỮ LIỆU DƯỢC QUỐC GIA (QĐ 522)</h4>
+ 
           <div className="form-group">
-            <label htmlFor="cfg-duoc-store">Mã nhà thuốc (Store ID) (Tùy chọn)</label>
+            <label htmlFor="cfg-duoc-user">Tài khoản CSDL Dược *</label>
             <input
               type="text"
-              id="cfg-duoc-store"
-              value={cfgDuocStore}
-              onChange={(e) => setCfgDuocStore(e.target.value)}
+              id="cfg-duoc-user"
+              required={!cfgUseMock}
+              value={cfgDuocUser}
+              onChange={(e) => setCfgDuocUser(e.target.value)}
             />
           </div>
+ 
           <div className="form-group">
-            <label htmlFor="cfg-duoc-wh">Mã kho (Warehouse Code) (Tùy chọn)</label>
-            <input
-              type="text"
-              id="cfg-duoc-wh"
-              value={cfgDuocWh}
-              onChange={(e) => setCfgDuocWh(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="form-group mt-4">
-          <label htmlFor="cfg-proxy-url">Proxy Server URL (Tùy chọn)</label>
-          <input
-            type="text"
-            id="cfg-proxy-url"
-            placeholder="http://username:password@proxy-ip:port"
-            value={cfgProxyUrl}
-            onChange={(e) => setCfgProxyUrl(e.target.value)}
-          />
-          <span className="text-[11px] text-slate-500 leading-relaxed mt-1 block">
-            * Nếu trống, hệ thống sẽ tự động quét proxy VN miễn phí từ nhiều nguồn (Geonode, ProxyScrape, Proxifly...). Proxy free chỉ sống vài giờ — phù hợp test, nên dùng proxy riêng trả phí khi deploy production.
-          </span>
-        </div>
-
-        <h4 className="sub-title pt-6 border-t border-slate-100 mt-8">CỔNG ĐƠN THUỐC QUỐC GIA (QĐ 228)</h4>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="cfg-rx-appname">App Name (Mã cơ sở QĐ 228)</label>
-            <input
-              type="text"
-              id="cfg-rx-appname"
-              value={cfgRxAppName}
-              onChange={(e) => setCfgRxAppName(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="cfg-rx-appkey">App Key (Khóa bảo mật QĐ 228)</label>
+            <label htmlFor="cfg-duoc-pass">Mật khẩu CSDL Dược *</label>
             <input
               type="password"
-              id="cfg-rx-appkey"
+              id="cfg-duoc-pass"
               placeholder="••••••••"
-              value={cfgRxAppKey}
-              onChange={(e) => setCfgRxAppKey(e.target.value)}
+              required={!cfgUseMock && !cfgDuocPass}
+              value={cfgDuocPass}
+              onChange={(e) => setCfgDuocPass(e.target.value)}
               autoComplete="new-password"
             />
+            <span className="text-[11px] text-slate-500">
+              * Để trống nếu không muốn cập nhật lại mật khẩu cũ.
+            </span>
+          </div>
+        </div>
+
+        <div className={`transition-all duration-300 ${cfgUseMock ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="cfg-duoc-store">Mã nhà thuốc (Store ID) (Tùy chọn)</label>
+              <input
+                type="text"
+                id="cfg-duoc-store"
+                value={cfgDuocStore}
+                onChange={(e) => setCfgDuocStore(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="cfg-duoc-wh">Mã kho (Warehouse Code) (Tùy chọn)</label>
+              <input
+                type="text"
+                id="cfg-duoc-wh"
+                value={cfgDuocWh}
+                onChange={(e) => setCfgDuocWh(e.target.value)}
+              />
+            </div>
+          </div>
+ 
+          <div className="form-group mt-4">
+            <label htmlFor="cfg-proxy-url">Proxy Server URL (Tùy chọn)</label>
+            <input
+              type="text"
+              id="cfg-proxy-url"
+              placeholder="http://username:password@proxy-ip:port"
+              value={cfgProxyUrl}
+              onChange={(e) => setCfgProxyUrl(e.target.value)}
+            />
+            <span className="text-[11px] text-slate-500 leading-relaxed mt-1 block">
+              * Nếu trống, hệ thống sẽ tự động quét proxy VN miễn phí từ nhiều nguồn (Geonode, ProxyScrape, Proxifly...). Proxy free chỉ sống vài giờ — phù hợp test, nên dùng proxy riêng trả phí khi deploy production.
+            </span>
+          </div>
+ 
+          <h4 className="sub-title pt-6 border-t border-slate-100 mt-8">CỔNG ĐƠN THUỐC QUỐC GIA (QĐ 228)</h4>
+ 
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="cfg-rx-appname">App Name (Mã cơ sở QĐ 228)</label>
+              <input
+                type="text"
+                id="cfg-rx-appname"
+                value={cfgRxAppName}
+                onChange={(e) => setCfgRxAppName(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="cfg-rx-appkey">App Key (Khóa bảo mật QĐ 228)</label>
+              <input
+                type="password"
+                id="cfg-rx-appkey"
+                placeholder="••••••••"
+                value={cfgRxAppKey}
+                onChange={(e) => setCfgRxAppKey(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
           </div>
         </div>
 

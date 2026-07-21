@@ -24,6 +24,7 @@ export async function GET() {
         appKey: config.qd228AppKey ? '••••••••' : '',
       },
       proxyUrl: config.proxyUrl || '',
+      useMock: config.useMock,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
 
       try {
         const body = await request.json();
-        const { csdlDuoc, qd228, proxyUrl } = body;
+        const { csdlDuoc, qd228, proxyUrl, useMock } = body;
 
         sendProgress('parse_body', 'Đang nhận dữ liệu cấu hình hệ thống...');
 
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
             qd228AppKey: finalAppKey,
             proxyUrl: explicitProxy,
             autoResolvedProxyUrl: null,
+            useMock: !!useMock,
           },
           update: {
             duocUsername: csdlDuoc?.username || '',
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
             qd228AppName: qd228?.appName || null,
             qd228AppKey: finalAppKey,
             proxyUrl: explicitProxy,
+            useMock: !!useMock,
             ...(explicitProxy ? { autoResolvedProxyUrl: null } : {}),
           },
         });
@@ -109,7 +112,9 @@ export async function POST(request: Request) {
 
         const client = await getClient(sendProgress);
 
-        if (client && client.csdlDuoc) {
+        if (useMock) {
+          sendProgress('validation_success', 'Chế độ giả lập (Mock Mode) hoạt động! Không cần xác thực qua mạng.');
+        } else if (client && client.csdlDuoc) {
           sendProgress('verifying_auth', 'Đang đăng nhập và truy xuất thử danh mục từ CSDL Dược...');
 
           const maxAttempts = 3;

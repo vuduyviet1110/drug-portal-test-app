@@ -21,6 +21,7 @@ export default function Home() {
   const [cfgRxAppName, setCfgRxAppName] = useState('');
   const [cfgRxAppKey, setCfgRxAppKey] = useState('');
   const [cfgProxyUrl, setCfgProxyUrl] = useState('');
+  const [cfgUseMock, setCfgUseMock] = useState(false);
   const [isConfiguring, setIsConfiguring] = useState(false);
 
   // Setup gate state (null = checking, false = show setup page, true = authenticated)
@@ -103,16 +104,17 @@ export default function Home() {
       const res = await fetch('/api/config');
       const data = await res.json();
 
-      if (data.csdlDuoc && data.csdlDuoc.username) {
-        setCfgDuocUser(data.csdlDuoc.username || '');
-        setCfgDuocPass(data.csdlDuoc.password || '');
-        setCfgDuocStore(data.csdlDuoc.storeId || '');
-        setCfgDuocWh(data.csdlDuoc.warehouseCode || '');
+      if ((data.csdlDuoc && data.csdlDuoc.username) || data.useMock) {
+        setCfgDuocUser(data.csdlDuoc?.username || '');
+        setCfgDuocPass(data.csdlDuoc?.password || '');
+        setCfgDuocStore(data.csdlDuoc?.storeId || '');
+        setCfgDuocWh(data.csdlDuoc?.warehouseCode || '');
         if (data.qd228) {
           setCfgRxAppName(data.qd228.appName || '');
           setCfgRxAppKey(data.qd228.appKey || '');
         }
         setCfgProxyUrl(data.proxyUrl || '');
+        setCfgUseMock(data.useMock || false);
         setIsConfigured(true);
         loadMasterUnits();
         loadCatalogDrugs(1);
@@ -142,6 +144,7 @@ export default function Home() {
         setCfgRxAppKey(data.qd228.appKey || '');
       }
       setCfgProxyUrl(data.proxyUrl || '');
+      setCfgUseMock(data.useMock || false);
     } catch (err: any) {
       console.warn('Không thể tải cấu hình lưu sẵn:', err.message);
     }
@@ -167,7 +170,8 @@ export default function Home() {
             appName: cfgRxAppName.trim(),
             appKey: cfgRxAppKey,
           } : undefined,
-          proxyUrl: cfgProxyUrl.trim() || undefined
+          proxyUrl: cfgProxyUrl.trim() || undefined,
+          useMock: cfgUseMock,
         }),
       });
 
@@ -220,6 +224,7 @@ export default function Home() {
       setCfgRxAppName('');
       setCfgRxAppKey('');
       setCfgProxyUrl('');
+      setCfgUseMock(false);
       setIsConfigured(false);
     } catch (err: any) {
       alert(`❌ Lỗi khi xóa cấu hình: ${err.message}`);
@@ -558,6 +563,8 @@ export default function Home() {
         setCfgRxAppKey={setCfgRxAppKey}
         cfgProxyUrl={cfgProxyUrl}
         setCfgProxyUrl={setCfgProxyUrl}
+        cfgUseMock={cfgUseMock}
+        setCfgUseMock={setCfgUseMock}
         isConfiguring={isConfiguring}
         backendActivityLogs={backendActivityLogs}
       />
@@ -682,6 +689,8 @@ export default function Home() {
             setCfgRxAppKey={setCfgRxAppKey}
             cfgProxyUrl={cfgProxyUrl}
             setCfgProxyUrl={setCfgProxyUrl}
+            cfgUseMock={cfgUseMock}
+            setCfgUseMock={setCfgUseMock}
             handleResetSettings={handleResetSettings}
             isConfiguring={isConfiguring}
             backendActivityLogs={backendActivityLogs}

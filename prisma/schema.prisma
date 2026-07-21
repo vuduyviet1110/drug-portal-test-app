@@ -17,6 +17,7 @@ model SystemConfig {
   qd228AppKey        String?
   proxyUrl          String?
   autoResolvedProxyUrl String?
+  useMock           Boolean  @default(false)
   updatedAt         DateTime @updatedAt
 }
 

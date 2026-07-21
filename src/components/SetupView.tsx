@@ -19,6 +19,8 @@ interface SetupViewProps {
   setCfgRxAppKey: (val: string) => void;
   cfgProxyUrl: string;
   setCfgProxyUrl: (val: string) => void;
+  cfgUseMock: boolean;
+  setCfgUseMock: (val: boolean) => void;
   isConfiguring: boolean;
   backendActivityLogs: BackendActivityEntry[];
 }
@@ -40,6 +42,8 @@ export default function SetupView({
   setCfgRxAppKey,
   cfgProxyUrl,
   setCfgProxyUrl,
+  cfgUseMock,
+  setCfgUseMock,
   isConfiguring,
   backendActivityLogs,
 }: SetupViewProps) {
@@ -101,92 +105,116 @@ export default function SetupView({
           </div>
         )}
 
-        <div className="form-group">
-          <label htmlFor="setup-duoc-user">Tài khoản CSDL Dược *</label>
+        {/* Mock Mode Toggle */}
+        <div className="p-3.5 mb-5 rounded-lg border border-teal-200 bg-teal-50/50 flex items-center justify-between">
+          <div className="flex items-start gap-2.5">
+            <i className="fa-solid fa-vial text-teal-600 text-base mt-0.5 animate-[pulse_1.5s_infinite]"></i>
+            <div>
+              <label htmlFor="setup-use-mock" className="font-bold text-slate-800 text-xs block cursor-pointer">Sử dụng chế độ giả lập (Mock Mode)</label>
+              <span className="text-[10px] text-slate-500 leading-normal block">Không cần tài khoản thật. Thích hợp để test nhanh giao diện & SDK.</span>
+            </div>
+          </div>
           <input
-            type="text"
-            id="setup-duoc-user"
-            required
-            placeholder="Nhập mã cơ sở nhà thuốc"
-            value={cfgDuocUser}
-            onChange={(e) => setCfgDuocUser(e.target.value)}
+            type="checkbox"
+            id="setup-use-mock"
+            className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+            checked={cfgUseMock}
+            onChange={(e) => setCfgUseMock(e.target.checked)}
           />
         </div>
-
-        <div className="form-group">
-          <label htmlFor="setup-duoc-pass">Mật khẩu CSDL Dược *</label>
-          <input
-            type="password"
-            id="setup-duoc-pass"
-            required
-            placeholder="Nhập mật khẩu kết nối"
-            value={cfgDuocPass}
-            onChange={(e) => setCfgDuocPass(e.target.value)}
-          />
-        </div>
-
-        <div className="form-row mb-4">
+ 
+        <div className={`transition-all duration-300 ${cfgUseMock ? 'opacity-40 pointer-events-none select-none' : ''}`}>
           <div className="form-group">
-            <label htmlFor="setup-duoc-store">Store ID (Tùy chọn)</label>
+            <label htmlFor="setup-duoc-user">Tài khoản CSDL Dược *</label>
             <input
               type="text"
-              id="setup-duoc-store"
-              placeholder="e.g. STORE-01"
-              value={cfgDuocStore}
-              onChange={(e) => setCfgDuocStore(e.target.value)}
+              id="setup-duoc-user"
+              required={!cfgUseMock}
+              placeholder="Nhập mã cơ sở nhà thuốc"
+              value={cfgDuocUser}
+              onChange={(e) => setCfgDuocUser(e.target.value)}
             />
           </div>
+ 
           <div className="form-group">
-            <label htmlFor="setup-duoc-wh">Warehouse (Tùy chọn)</label>
+            <label htmlFor="setup-duoc-pass">Mật khẩu CSDL Dược *</label>
             <input
-              type="text"
-              id="setup-duoc-wh"
-              placeholder="e.g. WH-01"
-              value={cfgDuocWh}
-              onChange={(e) => setCfgDuocWh(e.target.value)}
+              type="password"
+              id="setup-duoc-pass"
+              required={!cfgUseMock}
+              placeholder="Nhập mật khẩu kết nối"
+              value={cfgDuocPass}
+              onChange={(e) => setCfgDuocPass(e.target.value)}
             />
           </div>
         </div>
 
-        <div className="form-group mb-4">
-          <label htmlFor="setup-proxy-url">Proxy Server URL (Tùy chọn)</label>
-          <input
-            type="text"
-            id="setup-proxy-url"
-            placeholder="http://username:password@proxy-ip:port"
-            value={cfgProxyUrl}
-            onChange={(e) => setCfgProxyUrl(e.target.value)}
-          />
-          <span className="text-[10px] text-slate-500 leading-relaxed mt-1 block">
-            * Nếu trống, hệ thống sẽ tự động quét proxy VN miễn phí từ nhiều nguồn (Geonode, ProxyScrape, Proxifly...). Proxy free chỉ sống vài giờ — phù hợp test, nên dùng proxy riêng trả phí khi deploy production hoặc xin bên dược whitelist IP của bạn
-          </span>
-        </div>
-
-        <details className="mb-4 text-xs text-slate-500 cursor-pointer">
-          <summary className="font-semibold text-slate-700 mb-2">Cấu hình Cổng Đơn Thuốc QĐ 228 (Tùy chọn)</summary>
-          <div className="pt-2 space-y-3">
+        <div className={`transition-all duration-300 ${cfgUseMock ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          <div className="form-row mb-4">
             <div className="form-group">
-              <label htmlFor="setup-rx-appname">App Name (QĐ 228)</label>
+              <label htmlFor="setup-duoc-store">Store ID (Tùy chọn)</label>
               <input
                 type="text"
-                id="setup-rx-appname"
-                placeholder="Mã cơ sở QĐ 228"
-                value={cfgRxAppName}
-                onChange={(e) => setCfgRxAppName(e.target.value)}
+                id="setup-duoc-store"
+                placeholder="e.g. STORE-01"
+                value={cfgDuocStore}
+                onChange={(e) => setCfgDuocStore(e.target.value)}
               />
             </div>
             <div className="form-group">
-              <label htmlFor="setup-rx-appkey">App Key (QĐ 228)</label>
+              <label htmlFor="setup-duoc-wh">Warehouse (Tùy chọn)</label>
               <input
-                type="password"
-                id="setup-rx-appkey"
-                placeholder="Khóa bảo mật QĐ 228"
-                value={cfgRxAppKey}
-                onChange={(e) => setCfgRxAppKey(e.target.value)}
+                type="text"
+                id="setup-duoc-wh"
+                placeholder="e.g. WH-01"
+                value={cfgDuocWh}
+                onChange={(e) => setCfgDuocWh(e.target.value)}
               />
             </div>
           </div>
-        </details>
+ 
+          <div className="form-group mb-4">
+            <label htmlFor="setup-proxy-url">Proxy Server URL (Tùy chọn)</label>
+            <input
+              type="text"
+              id="setup-proxy-url"
+              placeholder="http://username:password@proxy-ip:port"
+              value={cfgProxyUrl}
+              onChange={(e) => setCfgProxyUrl(e.target.value)}
+            />
+            <span className="text-[10px] text-slate-500 leading-relaxed mt-1 block">
+              * Nếu trống, hệ thống sẽ tự động quét proxy VN miễn phí từ nhiều nguồn (Geonode, ProxyScrape, Proxifly...). Proxy free chỉ sống vài giờ — phù hợp test, nên dùng proxy riêng trả phí khi deploy production hoặc xin bên dược whitelist IP của bạn
+            </span>
+          </div>
+        </div>
+
+        <div className={`transition-all duration-300 ${cfgUseMock ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          <details className="mb-4 text-xs text-slate-500 cursor-pointer">
+            <summary className="font-semibold text-slate-700 mb-2">Cấu hình Cổng Đơn Thuốc QĐ 228 (Tùy chọn)</summary>
+            <div className="pt-2 space-y-3">
+              <div className="form-group">
+                <label htmlFor="setup-rx-appname">App Name (QĐ 228)</label>
+                <input
+                  type="text"
+                  id="setup-rx-appname"
+                  placeholder="Mã cơ sở QĐ 228"
+                  value={cfgRxAppName}
+                  onChange={(e) => setCfgRxAppName(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="setup-rx-appkey">App Key (QĐ 228)</label>
+                <input
+                  type="password"
+                  id="setup-rx-appkey"
+                  placeholder="Khóa bảo mật QĐ 228"
+                  value={cfgRxAppKey}
+                  onChange={(e) => setCfgRxAppKey(e.target.value)}
+                />
+              </div>
+            </div>
+          </details>
+        </div>
 
         <button type="submit" className="submit-btn" disabled={isConfiguring}>
           {isConfiguring ? 'Đang lưu cấu hình...' : 'Lưu & Bắt đầu làm việc'}
