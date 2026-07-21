@@ -151,7 +151,7 @@ export default function SearchTab({
                         </td>
                         <td>
                           <div className="flex gap-2">
-                            <button className="action-btn" onClick={() => handleViewDetail(item.id)}>
+                            <button className="action-btn" onClick={() => handleViewDetail(item.registrationNumber || item.id)}>
                               <i className="fa-solid fa-circle-info"></i> Chi tiết
                             </button>
                             <button className="action-btn" onClick={() => handleSelectDrugForSync(item)}>
